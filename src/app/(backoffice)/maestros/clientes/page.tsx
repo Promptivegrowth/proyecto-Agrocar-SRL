@@ -90,8 +90,14 @@ export default function ClientesPage() {
                                         <div className="text-xs text-gray-400 mt-0.5 capitalize">{c.tipo_cliente}</div>
                                     </TableCell>
                                     <TableCell>{c.telefono || '-'}</TableCell>
-                                    <TableCell>{c.zonas?.nombre || 'Sin Zona'}</TableCell>
-                                    <TableCell>{c.usuarios?.nombres || 'No asignado'}</TableCell>
+                                    <TableCell>
+                                        {/* @ts-ignore */}
+                                        {c.zonas?.nombre || c.zonas?.[0]?.nombre || 'Sin Zona'}
+                                    </TableCell>
+                                    <TableCell>
+                                        {/* @ts-ignore */}
+                                        {c.usuarios?.nombres || c.usuarios?.[0]?.nombres || 'No asignado'}
+                                    </TableCell>
                                     <TableCell className="text-center">
                                         <Badge variant="outline">{c.lista_precio}</Badge>
                                     </TableCell>
