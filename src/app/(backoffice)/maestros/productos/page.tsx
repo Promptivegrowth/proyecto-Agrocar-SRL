@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,12 +9,19 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 export default function ProductosPage() {
+    const queryClient = useQueryClient();
     const [busqueda, setBusqueda] = useState('');
     const [mostrarInactivos, setMostrarInactivos] = useState(false);
     const [categoria, setCategoria] = useState('ALL');
+
+    // Form State
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [currentCode, setCurrentCode] = useState('');
+    const [currentProduct, setCurrentProduct] = useState<any>(null);
 
     const { data: productos, isLoading } = useQuery({
         queryKey: ['productos', busqueda, mostrarInactivos, categoria],
@@ -29,18 +36,120 @@ export default function ProductosPage() {
         }
     });
 
+    const mutationSave = useMutation({
+        mutationFn: async (product: any) => {
+            const userRes = await supabase.auth.getUser();
+            const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userRes.data.user?.id).single();
+            const payload = { ...product, empresa_id: usuario?.empresa_id };
+
+            if (currentProduct) {
+                const { error } = await supabase.from('productos').update(payload).eq('id', currentProduct.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('productos').insert([payload]);
+                if (error) throw error;
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['productos'] });
+            setIsDialogOpen(false);
+            setCurrentProduct(null);
+        }
+    });
+
+    const mutationDelete = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase.from('productos').update({ activo: false }).eq('id', id);
+            if (error) throw error;
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['productos'] })
+    });
+
+    const openEdit = (p: any) => {
+        setCurrentProduct(p);
+        setIsDialogOpen(true);
+    };
+
+    const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        const data = {
+            codigo: fd.get('codigo'),
+            descripcion: fd.get('descripcion'),
+            categoria: fd.get('categoria'),
+            unidad_medida: fd.get('unidad_medida'),
+            precio_lista_a: parseFloat(fd.get('precio_lista_a') as string),
+            precio_lista_b: parseFloat(fd.get('precio_lista_b') as string),
+            stock_minimo: parseFloat(fd.get('stock_minimo') as string),
+        };
+        mutationSave.mutate(data);
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
                         Productos
-                        <Badge variant="secondary" className="text-sm">{productos?.length || 0} activos</Badge>
+                        <Badge variant="secondary" className="text-sm">{productos?.length || 0} listados</Badge>
                     </h1>
                 </div>
-                <Button className="bg-primary hover:bg-primary/90 text-white font-medium">
-                    <Plus className="w-4 h-4 mr-2" /> Nuevo Producto
-                </Button>
+
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger
+                        render={
+                            <Button className="bg-primary hover:bg-primary/90 text-white font-medium" onClick={() => setCurrentProduct(null)}>
+                                <Plus className="w-4 h-4 mr-2" /> Nuevo Producto
+                            </Button>
+                        }
+                    />
+                    <DialogContent className="sm:max-w-[500px]">
+                        <DialogHeader>
+                            <DialogTitle>{currentProduct ? 'Editar Producto' : 'Crear Producto'}</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleSave} className="space-y-4 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Código</Label>
+                                    <Input name="codigo" defaultValue={currentProduct?.codigo} required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Unidad Medida</Label>
+                                    <Input name="unidad_medida" defaultValue={currentProduct?.unidad_medida || 'UND'} required />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Descripción</Label>
+                                <Input name="descripcion" defaultValue={currentProduct?.descripcion} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Categoría</Label>
+                                    <Input name="categoria" defaultValue={currentProduct?.categoria} required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Stock Mínimo</Label>
+                                    <Input name="stock_minimo" type="number" step="0.01" defaultValue={currentProduct?.stock_minimo || '10'} required />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Precio A</Label>
+                                    <Input name="precio_lista_a" type="number" step="0.01" defaultValue={currentProduct?.precio_lista_a || ''} required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Precio B</Label>
+                                    <Input name="precio_lista_b" type="number" step="0.01" defaultValue={currentProduct?.precio_lista_b || ''} required />
+                                </div>
+                            </div>
+                            <DialogFooter className="mt-4">
+                                <Button type="submit" disabled={mutationSave.isPending} className="w-full bg-[#1A2C45] text-white">
+                                    {mutationSave.isPending ? 'Guardando...' : 'Guardar Producto'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 items-center bg-white p-4 rounded-lg shadow-sm border border-gray-100">
@@ -59,9 +168,9 @@ export default function ProductosPage() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="ALL">Todas las categorías</SelectItem>
-                        <SelectItem value="embutido_frio">Embutido Frío</SelectItem>
-                        <SelectItem value="empacado">Empacado</SelectItem>
-                        <SelectItem value="otros">Otros</SelectItem>
+                        <SelectItem value="Carnes">Carnes</SelectItem>
+                        <SelectItem value="Lácteos">Lácteos</SelectItem>
+                        <SelectItem value="Pescados">Pescados</SelectItem>
                     </SelectContent>
                 </Select>
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-600 cursor-pointer">
@@ -115,8 +224,8 @@ export default function ProductosPage() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600"><Edit2 className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600"><Trash2 className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => openEdit(p)}><Edit2 className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => mutationDelete.mutate(p.id)} disabled={mutationDelete.isPending}><Trash2 className="h-4 w-4" /></Button>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -128,3 +237,4 @@ export default function ProductosPage() {
         </div>
     );
 }
+

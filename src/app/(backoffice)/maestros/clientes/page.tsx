@@ -1,17 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit2, Trash2, DollarSign, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 
 export default function ClientesPage() {
+    const queryClient = useQueryClient();
     const [busqueda, setBusqueda] = useState('');
+
+    // Form State
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [currentClient, setCurrentClient] = useState<any>(null);
 
     const { data: clientes, isLoading } = useQuery({
         queryKey: ['clientes', busqueda],
@@ -33,6 +41,54 @@ export default function ClientesPage() {
         }
     });
 
+    const mutationSave = useMutation({
+        mutationFn: async (cliente: any) => {
+            const userRes = await supabase.auth.getUser();
+            const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userRes.data.user?.id).single();
+            const payload = { ...cliente, empresa_id: usuario?.empresa_id };
+
+            if (currentClient) {
+                const { error } = await supabase.from('clientes').update(payload).eq('id', currentClient.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('clientes').insert([payload]);
+                if (error) throw error;
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['clientes'] });
+            setIsDialogOpen(false);
+            setCurrentClient(null);
+        }
+    });
+
+    const mutationToggleStatus = useMutation({
+        mutationFn: async ({ id, estado }: { id: string, estado: string }) => {
+            const { error } = await supabase.from('clientes').update({ estado }).eq('id', id);
+            if (error) throw error;
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clientes'] })
+    });
+
+    const openEdit = (c: any) => {
+        setCurrentClient(c);
+        setIsDialogOpen(true);
+    };
+
+    const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        const data = {
+            tipo_documento: fd.get('tipo_documento'),
+            numero_documento: fd.get('numero_documento'),
+            razon_social: fd.get('razon_social'),
+            telefono: fd.get('telefono'),
+            tipo_cliente: fd.get('tipo_cliente'),
+            limite_credito: parseFloat(fd.get('limite_credito') as string) || 0,
+        };
+        mutationSave.mutate(data);
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -42,9 +98,55 @@ export default function ClientesPage() {
                         <Badge variant="secondary" className="text-sm">{clientes?.length || 0} listados</Badge>
                     </h1>
                 </div>
-                <Button className="bg-primary hover:bg-primary/90 text-white font-medium">
-                    <Plus className="w-4 h-4 mr-2" /> Nuevo Cliente
-                </Button>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger
+                        render={
+                            <Button className="bg-primary hover:bg-primary/90 text-white font-medium" onClick={() => setCurrentClient(null)}>
+                                <Plus className="w-4 h-4 mr-2" /> Nuevo Cliente
+                            </Button>
+                        }
+                    />
+                    <DialogContent className="sm:max-w-[500px]">
+                        <DialogHeader>
+                            <DialogTitle>{currentClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleSave} className="space-y-4 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Tipo de Documento</Label>
+                                    <Input name="tipo_documento" defaultValue={currentClient?.tipo_documento || 'RUC'} required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Número de Documento</Label>
+                                    <Input name="numero_documento" defaultValue={currentClient?.numero_documento} required />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Razón Social / Nombres</Label>
+                                <Input name="razon_social" defaultValue={currentClient?.razon_social} required />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Teléfono</Label>
+                                    <Input name="telefono" defaultValue={currentClient?.telefono} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Tipo Cliente</Label>
+                                    <Input name="tipo_cliente" defaultValue={currentClient?.tipo_cliente || 'bodega'} placeholder="bodega, mayorista..." required />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Límite de Crédito (S/)</Label>
+                                <Input name="limite_credito" type="number" step="0.01" defaultValue={currentClient?.limite_credito || '0'} required />
+                            </div>
+                            <DialogFooter className="mt-4">
+                                <Button type="submit" disabled={mutationSave.isPending} className="w-full bg-[#1A2C45] text-white">
+                                    {mutationSave.isPending ? 'Guardando...' : 'Guardar Cliente'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center">
@@ -116,15 +218,15 @@ export default function ClientesPage() {
                                                     <DollarSign className="h-4 w-4" />
                                                 </Button>
                                             </Link>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" title="Editar">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" title="Editar" onClick={() => openEdit(c)}>
                                                 <Edit2 className="h-4 w-4" />
                                             </Button>
                                             {c.estado === 'activo' ? (
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" title="Bloquear">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" title="Bloquear" onClick={() => mutationToggleStatus.mutate({ id: c.id, estado: 'bloqueado' })} disabled={mutationToggleStatus.isPending}>
                                                     <Lock className="h-4 w-4" />
                                                 </Button>
                                             ) : (
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" title="Desbloquear">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" title="Desbloquear" onClick={() => mutationToggleStatus.mutate({ id: c.id, estado: 'activo' })} disabled={mutationToggleStatus.isPending}>
                                                     <Unlock className="h-4 w-4" />
                                                 </Button>
                                             )}
@@ -139,3 +241,4 @@ export default function ClientesPage() {
         </div>
     );
 }
+
