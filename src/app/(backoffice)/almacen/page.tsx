@@ -36,11 +36,11 @@ export default function AlmacenPage() {
                     <p className="text-gray-500 mt-1">Control de inventario, ingresos y transferencias</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button asChild className="bg-primary hover:bg-primary/90 text-white">
-                        <Link href="/almacen/ingreso">
+                    <Link href="/almacen/ingreso">
+                        <Button className="bg-primary hover:bg-primary/90 text-white">
                             <ArrowUpCircle className="w-4 h-4 mr-2" /> Ingreso de Mercadería
-                        </Link>
-                    </Button>
+                        </Button>
+                    </Link>
                     <Button variant="outline">
                         <ArrowRightLeft className="w-4 h-4 mr-2 text-gray-600" /> Transferencia
                     </Button>
@@ -78,11 +78,23 @@ export default function AlmacenPage() {
                                 ) : (
                                     stockData?.map((item, idx) => (
                                         <TableRow key={idx}>
-                                            <TableCell className="font-medium text-gray-600">{item.almacenes?.nombre}</TableCell>
-                                            <TableCell>{item.productos?.codigo}</TableCell>
-                                            <TableCell>{item.productos?.descripcion}</TableCell>
+                                            <TableCell className="font-medium text-gray-600">
+                                                {/* @ts-ignore */}
+                                                {item.almacenes?.nombre || item.almacenes?.[0]?.nombre}
+                                            </TableCell>
+                                            <TableCell>
+                                                {/* @ts-ignore */}
+                                                {item.productos?.codigo || item.productos?.[0]?.codigo}
+                                            </TableCell>
+                                            <TableCell>
+                                                {/* @ts-ignore */}
+                                                {item.productos?.descripcion || item.productos?.[0]?.descripcion}
+                                            </TableCell>
                                             <TableCell className="text-right font-medium text-blue-600">
-                                                {item.cantidad} <span className="text-xs text-gray-400 font-normal">{item.productos?.unidad_medida}</span>
+                                                {item.cantidad} <span className="text-xs text-gray-400 font-normal">
+                                                    {/* @ts-ignore */}
+                                                    {item.productos?.unidad_medida || item.productos?.[0]?.unidad_medida}
+                                                </span>
                                             </TableCell>
                                             <TableCell className="text-right text-gray-600">S/ {item.costo_promedio?.toFixed(4)}</TableCell>
                                             <TableCell className="text-right font-semibold">

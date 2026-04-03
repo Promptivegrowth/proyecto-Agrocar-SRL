@@ -105,11 +105,11 @@ export default function ClientesPage() {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" title="Ver Cuenta Corriente" asChild>
-                                                <Link href={`/cobranzas/cuentas-corrientes?cliente_id=${c.id}`}>
+                                            <Link href={`/cobranzas/cuentas-corrientes?cliente_id=${c.id}`}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600" title="Ver Cuenta Corriente">
                                                     <DollarSign className="h-4 w-4" />
-                                                </Link>
-                                            </Button>
+                                                </Button>
+                                            </Link>
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" title="Editar">
                                                 <Edit2 className="h-4 w-4" />
                                             </Button>

@@ -23,9 +23,11 @@ export default function MobilePedidoPage({ params }: { params: { clienteId: stri
     return (
         <div className="flex-1 bg-gray-50 flex flex-col h-[calc(100vh-60px)]">
             <div className="bg-white px-4 py-3 border-b flex items-center justify-between sticky top-0 z-20 shadow-sm shrink-0">
-                <Button variant="ghost" size="icon" className="-ml-2 h-8 w-8" asChild>
-                    <Link href="/app-vendedor"><ArrowLeft className="w-5 h-5 text-gray-700" /></Link>
-                </Button>
+                <Link href="/app-vendedor">
+                    <Button variant="ghost" size="icon" className="-ml-2 h-8 w-8">
+                        <ArrowLeft className="w-5 h-5 text-gray-700" />
+                    </Button>
+                </Link>
                 <span className="font-semibold grow text-center text-sm truncate mr-6">Bodega La Esquina</span>
             </div>
 
