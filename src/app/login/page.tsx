@@ -50,7 +50,7 @@ export default function LoginPage({
                     )}
 
                     <Button
-                        formAction={login}
+                        type="submit"
                         className="w-full bg-[#1A2C45] hover:bg-[#1A2C45]/90 text-white font-medium py-2 rounded-lg"
                     >
                         Ingresar al Sistema
