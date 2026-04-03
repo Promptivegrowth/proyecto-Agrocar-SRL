@@ -6,7 +6,7 @@ import * as fs from 'fs';
 dotenv.config({ path: resolve(process.cwd(), '.env.local') });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const managementToken = "sbp_976ded0e209de9e5359387386f4be8fa0920d89a";
+const managementToken = "sbp_d4bb36c0daad29f3cdc67adfef95e5eee65cdffb";
 const projectRef = "ktvpoafwopcybuvbtmme";
 
 async function runSql(sql: string) {
