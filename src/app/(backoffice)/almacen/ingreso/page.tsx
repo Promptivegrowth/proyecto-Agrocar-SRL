@@ -11,9 +11,11 @@ export default function IngresoMercaderia() {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" asChild>
-                    <Link href="/almacen"><ArrowLeft className="w-5 h-5" /></Link>
-                </Button>
+                <Link href="/almacen">
+                    <Button variant="ghost" size="icon">
+                        <ArrowLeft className="w-5 h-5" />
+                    </Button>
+                </Link>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Ingreso de Mercadería (Compras)</h1>
                 </div>
