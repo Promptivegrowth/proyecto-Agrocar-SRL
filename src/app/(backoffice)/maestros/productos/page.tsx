@@ -53,7 +53,7 @@ export default function ProductosPage() {
                         onChange={(e) => setBusqueda(e.target.value)}
                     />
                 </div>
-                <Select value={categoria} onValueChange={(v) => setCategoria(v)}>
+                <Select value={categoria} onValueChange={(v) => v && setCategoria(v)}>
                     <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="Categoría" />
                     </SelectTrigger>
