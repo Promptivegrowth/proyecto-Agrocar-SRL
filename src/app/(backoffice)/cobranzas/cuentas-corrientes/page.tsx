@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Search, History, Check, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useSearchParams } from 'next/navigation';
 
-export default function CuentasCorrientesPage() {
+function CuentasCorrientesContent() {
     const params = useSearchParams();
     const clienteId = params.get('cliente_id');
 
@@ -95,3 +95,12 @@ export default function CuentasCorrientesPage() {
         </div>
     );
 }
+
+export default function CuentasCorrientesPage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-center text-gray-500">Cargando cuentas...</div>}>
+            <CuentasCorrientesContent />
+        </Suspense>
+    );
+}
+
