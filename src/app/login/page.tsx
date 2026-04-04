@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Snowflake, Lock, Mail, ChevronRight } from 'lucide-react'
+import { Snowflake, Lock, Mail, ChevronRight, Loader2 } from 'lucide-react'
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 export default function LoginPage({
     searchParams,
@@ -14,6 +16,20 @@ export default function LoginPage({
     searchParams: Promise<{ error?: string }>
 }) {
     const params = use(searchParams);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubmit = async (formData: FormData) => {
+        setIsLoading(true);
+        try {
+            await login(formData);
+            toast.success("¡Bienvenido al sistema Agrocar!", {
+                description: "Cargando panel de control..."
+            });
+        } catch (error) {
+            setIsLoading(false);
+            toast.error("Error al iniciar sesión");
+        }
+    };
 
     return (
         <div className="min-h-screen w-full flex items-center justify-center bg-[#0F172A] relative overflow-hidden font-sans">
@@ -47,7 +63,7 @@ export default function LoginPage({
                             <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-400 font-mono">v2.4.0</Badge>
                         </div>
 
-                        <form action={login} className="space-y-6">
+                        <form action={handleSubmit} className="space-y-6">
                             {params?.error && (
                                 <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
@@ -90,10 +106,20 @@ export default function LoginPage({
 
                             <Button
                                 type="submit"
+                                disabled={isLoading}
                                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-[0.2em] h-14 rounded-2xl shadow-[0_8px_20px_-6px_rgba(37,99,235,0.35)] hover:shadow-[0_12px_25px_-4px_rgba(37,99,235,0.45)] transition-all duration-300 flex items-center justify-center gap-2 group/btn active:scale-[0.98]"
                             >
-                                Iniciar Sesión
-                                <ChevronRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Iniciando...
+                                    </>
+                                ) : (
+                                    <>
+                                        Iniciar Sesión
+                                        <ChevronRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
+                                    </>
+                                )}
                             </Button>
                         </form>
                     </div>

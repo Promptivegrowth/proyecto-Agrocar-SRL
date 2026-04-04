@@ -13,6 +13,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function SortableItem({ id, pedido }: { id: string, pedido: any }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
@@ -47,6 +49,8 @@ export default function DespachoPage() {
     // Local state for drag & drop
     const [pedidosPendientes, setPedidosPendientes] = useState<any[]>([]);
     const [vehiculos, setVehiculos] = useState<any[]>([]);
+    const [selectedVehiculo, setSelectedVehiculo] = useState<any>(null);
+    const [isPickingListOpen, setIsPickingListOpen] = useState(false);
 
     const { isLoading: isLoadingVehiculos } = useQuery({
         queryKey: ['vehiculos-despacho'],
@@ -262,8 +266,16 @@ export default function DespachoPage() {
                                     </CardContent>
                                     {vehiculo.consolidado.length > 0 && (
                                         <div className="p-3 border-t bg-white shrink-0">
-                                            <Button variant="outline" className="w-full text-xs" size="sm">
-                                                Ver Picking List / Imprimir
+                                            <Button
+                                                variant="outline"
+                                                className="w-full text-xs"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setSelectedVehiculo(vehiculo);
+                                                    setIsPickingListOpen(true);
+                                                }}
+                                            >
+                                                Ver Picking List / Detalle
                                             </Button>
                                         </div>
                                     )}
@@ -273,6 +285,62 @@ export default function DespachoPage() {
                     </div>
                 </div>
             </DndContext>
+
+            <Dialog open={isPickingListOpen} onOpenChange={setIsPickingListOpen}>
+                <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Truck className="w-5 h-5 text-primary" />
+                            Picking List - {selectedVehiculo?.placa}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Resumen de pedidos asignados a {selectedVehiculo?.chofer_nombre}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto mt-4">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Pedido</TableHead>
+                                    <TableHead>Cliente</TableHead>
+                                    <TableHead>Distrito</TableHead>
+                                    <TableHead className="text-right">Total (S/)</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {selectedVehiculo?.consolidado.map((p: any) => (
+                                    <TableRow key={p.id}>
+                                        <TableCell className="font-bold">{p.numero}</TableCell>
+                                        <TableCell className="text-xs">{p.clientes?.razon_social}</TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className="text-[9px]">{p.clientes?.distrito}</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium">S/ {p.total.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                ))}
+                                <TableRow className="bg-gray-50 font-bold">
+                                    <TableCell colSpan={3} className="text-right uppercase text-[10px]">Carga Total Consolidada</TableCell>
+                                    <TableCell className="text-right text-primary">
+                                        S/ {selectedVehiculo?.consolidado.reduce((acc: number, p: any) => acc + p.total, 0).toFixed(2)}
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsPickingListOpen(false)}>Cerrar</Button>
+                        <Button variant="default" onClick={() => {
+                            toast.success("Enviando Picking List a la impresora térmica...");
+                            setIsPickingListOpen(false);
+                        }}>
+                            <FileText className="w-4 h-4 mr-2" />
+                            Imprimir para Almacén
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

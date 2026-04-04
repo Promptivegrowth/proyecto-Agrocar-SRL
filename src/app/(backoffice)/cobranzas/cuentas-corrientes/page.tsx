@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { Search, History, Check, DollarSign, Wallet } from 'lucide-react';
+import { Search, History, Check, DollarSign, Wallet, CreditCard, Banknote, Landmark } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -15,6 +19,18 @@ function CuentasCorrientesContent() {
     const params = useSearchParams();
     const queryClient = useQueryClient();
     const clienteId = params.get('cliente_id');
+
+    const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+    const [selectedComp, setSelectedComp] = useState<any>(null);
+    const [paymentData, setPaymentData] = useState<{
+        metodo: string;
+        monto: number;
+        referencia: string;
+    }>({
+        metodo: 'yape',
+        monto: 0,
+        referencia: ''
+    });
 
     const { data: clientes, isLoading: loadingClients } = useQuery({
         queryKey: ['clientes-cc-search'],
@@ -73,16 +89,9 @@ function CuentasCorrientesContent() {
     });
 
     const mutationPagar = useMutation({
-        mutationFn: async (comprobanteId: string) => {
-            const comp = deudas?.find(d => d.id === comprobanteId);
-            if (!comp) return;
-
+        mutationFn: async (data: { comprobanteId: string, monto: number, metodo: string, referencia: string }) => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                toast.error('Sesión expirada. Reingrese.');
-                window.location.href = '/login';
-                return;
-            }
+            if (!user) throw new Error('Sesión expirada');
 
             const { data: usuario, error: userError } = await supabase
                 .from('usuarios')
@@ -92,35 +101,54 @@ function CuentasCorrientesContent() {
 
             if (userError || !usuario) throw new Error('Usuario no vinculado a empresa');
 
-            // Insert pago full mapping
+            // 1. Insertar Pago
             const { error: pErr } = await supabase.from('pagos').insert([{
                 empresa_id: usuario.empresa_id,
-                comprobante_id: comprobanteId,
-                cliente_id: clienteId,
+                comprobante_id: data.comprobanteId,
+                cliente_id: clienteId || '',
                 fecha: new Date().toISOString().split('T')[0],
-                monto: comp.saldo,
-                metodo_pago: 'efectivo',
-                usuario_cobrador_id: user.id
+                monto: data.monto,
+                metodo_pago: data.metodo,
+                usuario_cobrador_id: user.id,
+                observaciones: data.referencia ? `Ref: ${data.referencia}` : ''
             }]);
 
             if (pErr) throw pErr;
 
-            // Update comprobante
+            // 2. Actualizar Comprobante (monto_pagado acumulativo)
+            const compRaw = deudas?.find(d => d.id === data.comprobanteId);
+            if (!compRaw) throw new Error('Comprobante no encontrado');
+
+            const nuevoMontoPagado = (compRaw.total - compRaw.saldo) + data.monto;
+            const estadoFinal = nuevoMontoPagado >= compRaw.total ? 'pagado' : 'parcial';
+
             const { error: cErr } = await supabase.from('comprobantes').update({
-                monto_pagado: comp.total,
-                estado_pago: 'pagado'
-            }).eq('id', comprobanteId);
+                monto_pagado: nuevoMontoPagado,
+                estado_pago: estadoFinal
+            }).eq('id', data.comprobanteId);
 
             if (cErr) throw cErr;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['deudas', clienteId] });
-            toast.success("Pago total registrado exitosamente.");
+            queryClient.invalidateQueries({ queryKey: ['deudas', clienteId || ''] });
+            toast.success("Cobranza registrada correctamente.");
+            setIsPaymentDialogOpen(false);
+            setPaymentData({ metodo: 'yape', monto: 0, referencia: '' });
         },
         onError: (error: any) => {
             toast.error("Error al registrar pago: " + error.message);
         }
     });
+
+    const openPayment = (comprobante: any) => {
+        setSelectedComp(comprobante);
+        setPaymentData({
+            metodo: 'yape',
+            monto: comprobante.saldo,
+            referencia: ''
+        });
+        setIsPaymentDialogOpen(true);
+    };
 
     if (!clienteId) {
         return (
@@ -233,9 +261,9 @@ function CuentasCorrientesContent() {
                                     <TableCell className="text-right text-gray-500">S/ {d.total.toFixed(2)}</TableCell>
                                     <TableCell className="text-right font-bold text-red-600">S/ {d.saldo.toFixed(2)}</TableCell>
                                     <TableCell>
-                                        <Button size="sm" onClick={() => mutationPagar.mutate(d.id)} disabled={mutationPagar.isPending} className="bg-green-600 w-full hover:bg-green-700">
+                                        <Button size="sm" onClick={() => openPayment(d)} className="bg-green-600 w-full hover:bg-green-700">
                                             <DollarSign className="w-4 h-4 mr-1" />
-                                            {mutationPagar.variables === d.id && mutationPagar.isPending ? 'P...' : 'Pagar'}
+                                            Cobrar
                                         </Button>
                                     </TableCell>
                                 </TableRow>
@@ -253,6 +281,93 @@ function CuentasCorrientesContent() {
                     </Table>
                 </CardContent>
             </Card>
+
+            <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Wallet className="w-5 h-5 text-green-600" />
+                            Registrar Cobranza
+                        </DialogTitle>
+                        <DialogDescription>
+                            Ingrese los detalles del pago para {selectedComp?.doc}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="metodo">Método de Pago</Label>
+                            <Select
+                                value={paymentData.metodo}
+                                onValueChange={(v) => setPaymentData({ ...paymentData, metodo: v || '' })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccione método" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="yape">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-purple-500" /> Yape
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="pling">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-blue-400" /> Pling
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="efectivo">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-green-500" /> Efectivo
+                                        </div>
+                                    </SelectItem>
+                                    <SelectItem value="transferencia">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-orange-500" /> Transferencia
+                                        </div>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="monto">Monto a Cobrar (S/)</Label>
+                            <Input
+                                id="monto"
+                                type="number"
+                                step="0.01"
+                                value={paymentData.monto}
+                                onChange={(e) => setPaymentData({ ...paymentData, monto: parseFloat(e.target.value) })}
+                                className="font-bold text-lg"
+                            />
+                            <p className="text-[10px] text-gray-500">Saldo pendiente: S/ {selectedComp?.saldo?.toFixed(2)}</p>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="referencia">Nro. de Operación / Referencia</Label>
+                            <Input
+                                id="referencia"
+                                placeholder="Ej: 123456"
+                                value={paymentData.referencia}
+                                onChange={(e) => setPaymentData({ ...paymentData, referencia: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>
+                        <Button
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => mutationPagar.mutate({
+                                comprobanteId: selectedComp?.id || '',
+                                ...paymentData
+                            })}
+                            disabled={mutationPagar.isPending || paymentData.monto <= 0}
+                        >
+                            {mutationPagar.isPending ? 'Procesando...' : 'Confirmar Cobro'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

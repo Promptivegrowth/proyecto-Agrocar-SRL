@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow, Polyline } from '@react-google-maps/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -33,9 +33,70 @@ export default function SupervisionMapaPage() {
     }, []);
 
     const vendedores = [
-        { id: 1, nombre: 'Julio Pérez', lastPing: 'Hace 2 min', pos: { lat: -12.052, lng: -77.045 }, activo: true },
-        { id: 2, nombre: 'Carmen Rosas', lastPing: 'Hace 45 min', pos: { lat: -12.080, lng: -77.030 }, activo: false },
+        {
+            id: 1,
+            nombre: 'Julio Pérez',
+            lastPing: 'Hace 2 min',
+            pos: { lat: -12.092, lng: -77.022 },
+            activo: true,
+            distrito: 'San Isidro',
+            ruta: [
+                { lat: -12.085, lng: -77.015 },
+                { lat: -12.088, lng: -77.018 },
+                { lat: -12.092, lng: -77.022 },
+            ]
+        },
+        {
+            id: 2,
+            nombre: 'Carmen Rosas',
+            lastPing: 'Hace 5 min',
+            pos: { lat: -12.122, lng: -77.028 },
+            activo: true,
+            distrito: 'Miraflores',
+            ruta: [
+                { lat: -12.112, lng: -77.022 },
+                { lat: -12.118, lng: -77.025 },
+                { lat: -12.122, lng: -77.028 },
+            ]
+        },
+        {
+            id: 3,
+            nombre: 'Luis Arrieta',
+            lastPing: 'Hace 15 min',
+            pos: { lat: -12.129, lng: -76.992 },
+            activo: true,
+            distrito: 'Surco',
+            ruta: [
+                { lat: -12.120, lng: -76.985 },
+                { lat: -12.125, lng: -76.988 },
+                { lat: -12.129, lng: -76.992 },
+            ]
+        },
+        {
+            id: 4,
+            nombre: 'Raúl Mendoza',
+            lastPing: 'Hace 45 min',
+            pos: { lat: -12.055, lng: -76.955 },
+            activo: false,
+            distrito: 'Ate',
+            ruta: []
+        },
+        {
+            id: 5,
+            nombre: 'Sofía Castro',
+            lastPing: 'Hace 1 min',
+            pos: { lat: -12.045, lng: -77.035 },
+            activo: true,
+            distrito: 'Lima Centro',
+            ruta: [
+                { lat: -12.040, lng: -77.030 },
+                { lat: -12.042, lng: -77.032 },
+                { lat: -12.045, lng: -77.035 },
+            ]
+        },
     ];
+
+    const [selectedVend, setSelectedVend] = useState<number | null>(null);
 
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
@@ -60,17 +121,27 @@ export default function SupervisionMapaPage() {
                     </CardHeader>
                     <CardContent className="flex-1 p-0 overflow-y-auto divide-y divide-gray-100">
                         {vendedores.map(v => (
-                            <div key={v.id} className="p-3 hover:bg-gray-50 cursor-pointer transition-colors group">
+                            <div key={v.id}
+                                onClick={() => {
+                                    setSelectedVend(v.id);
+                                    map?.panTo(v.pos);
+                                    map?.setZoom(15);
+                                }}
+                                className={`p-3 hover:bg-gray-50 cursor-pointer transition-colors group ${selectedVend === v.id ? 'bg-blue-50 border-r-4 border-blue-500' : ''}`}
+                            >
                                 <div className="flex items-center justify-between">
                                     <span className="font-semibold text-sm text-gray-800 flex items-center gap-2">
                                         <span className={`w-2 h-2 rounded-full ${v.activo ? 'bg-green-500' : 'bg-red-500'}`} />
                                         {v.nombre}
                                     </span>
-                                    <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:bg-blue-50">
+                                    <Badge variant="outline" className="text-[9px] uppercase">{v.distrito}</Badge>
+                                </div>
+                                <div className="flex items-center justify-between mt-1">
+                                    <p className="text-[10px] text-gray-500 ml-4">Último ping: {v.lastPing}</p>
+                                    <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
                                         <Navigation className="w-3 h-3" />
                                     </Button>
                                 </div>
-                                <p className="text-xs text-gray-500 ml-4 mt-1">Último ping: {v.lastPing}</p>
                             </div>
                         ))}
                     </CardContent>
@@ -91,10 +162,35 @@ export default function SupervisionMapaPage() {
                             options={{ disableDefaultUI: true, zoomControl: true }}
                         >
                             {vendedores.map(v => (
-                                <Marker key={v.id} position={v.pos} icon={{
-                                    url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                                    scaledSize: new google.maps.Size(32, 32)
-                                }} />
+                                <React.Fragment key={v.id}>
+                                    <Marker
+                                        position={v.pos}
+                                        onClick={() => setSelectedVend(v.id)}
+                                        icon={{
+                                            url: v.activo ? 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                                            scaledSize: new google.maps.Size(40, 40)
+                                        }}
+                                    />
+                                    {v.ruta.length > 0 && (
+                                        <Polyline
+                                            path={v.ruta}
+                                            options={{
+                                                strokeColor: v.id === 1 ? '#3B82F6' : v.id === 2 ? '#EC4899' : '#10B981',
+                                                strokeOpacity: 0.8,
+                                                strokeWeight: 4,
+                                            }}
+                                        />
+                                    )}
+                                    {selectedVend === v.id && (
+                                        <InfoWindow position={v.pos} onCloseClick={() => setSelectedVend(null)}>
+                                            <div className="p-2">
+                                                <p className="font-bold text-sm">{v.nombre}</p>
+                                                <p className="text-[10px] text-gray-500 uppercase">{v.distrito}</p>
+                                                <p className="text-[10px] mt-1">Velocidad: 24 km/h</p>
+                                            </div>
+                                        </InfoWindow>
+                                    )}
+                                </React.Fragment>
                             ))}
                         </GoogleMap>
                     )}
