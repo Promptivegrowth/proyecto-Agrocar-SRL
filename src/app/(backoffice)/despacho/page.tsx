@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Truck, MapPin, Search, Calendar, FileText, CheckCircle2, ChevronRight, Scale, Package, Zap, Plus, Minus } from 'lucide-react';
+import { Truck, MapPin, Search, Calendar, FileText, CheckCircle2, ChevronRight, Scale, Package, Zap, Plus, Minus, Printer } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,25 @@ import { Progress } from "@/components/ui/progress";
 import { confirmarConsolidado } from './actions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const calcularPesoTotal = (pedidos: any[]): number => {
+    return pedidos.reduce((total, pedido) => {
+        // Si es carga directa, ya tiene el peso precalculado o en el objeto
+        if (pedido._peso_total) return total + Number(pedido._peso_total);
+
+        // Si es un pedido real, sumamos sus items
+        return total + (pedido.pedido_items?.reduce((acc: number, it: any) => {
+            const pesoUnit = it.peso_kg || it.productos?.peso_kg || 0;
+            const cantidad = Number(it.cantidad) || 0;
+
+            if (pesoUnit > 0) return acc + (cantidad * pesoUnit);
+            // Fallback: si no tiene peso_kg, pero la unidad es KG, usamos la cantidad
+            if (it.unidad_medida === 'KG') return acc + cantidad;
+            // Fallback final: si no hay info, asumimos 1kg por unidad para que la barra suba algo
+            return acc + cantidad;
+        }, 0) || 0);
+    }, 0);
+};
+
 function DroppableContainer({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
     const { setNodeRef, isOver } = useDroppable({ id });
     return (
@@ -29,20 +48,44 @@ function DroppableContainer({ id, children, className }: { id: string, children:
     );
 }
 
-function SortableItem({ id, pedido, onDetail, vehiculos, onManualAssign }: { id: string, pedido: any, onDetail: (p: any) => void, vehiculos?: any[], onManualAssign?: (pId: string, vId: string) => void }) {
+function SortableItem({
+    id,
+    pedido,
+    onDetail,
+    vehiculos,
+    onManualAssign,
+    onRemove
+}: {
+    id: string,
+    pedido: any,
+    onDetail: (p: any) => void,
+    vehiculos?: any[],
+    onManualAssign?: (pId: string, vId: string) => void,
+    onRemove?: (id: string) => void
+}) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
-    const pesoTotal = pedido._peso_total || (pedido.pedido_items?.reduce((acc: number, it: any) => {
-        const pesoUnit = it.peso_kg || it.productos?.peso_kg || 0;
-        if (pesoUnit > 0) return acc + (Number(it.cantidad) || 0) * pesoUnit;
-        if (it.unidad_medida === 'KG') return acc + (Number(it.cantidad) || 0);
-        return acc + (Number(it.cantidad) || 0); // fallback: count units as kg
-    }, 0) || 0);
+    const pesoTotal = calcularPesoTotal([pedido]);
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}
-            className={`group bg-white p-3 rounded-lg border-2 shadow-sm cursor-grab active:cursor-grabbing transition-all hover:border-primary/50 hover:shadow-md ${isDragging ? 'border-primary shadow-lg scale-105 z-50' : 'border-gray-100'}`}>
+            className={`group bg-white p-3 rounded-lg border-2 shadow-sm cursor-grab active:cursor-grabbing transition-all hover:border-primary/50 hover:shadow-md relative ${isDragging ? 'border-primary shadow-lg scale-105 z-50' : 'border-gray-100'}`}>
+
+            {/* Botón de eliminar */}
+            {onRemove && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onRemove(id);
+                    }}
+                    onPointerDown={e => e.stopPropagation()}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-600 shadow-lg z-50"
+                >
+                    <Plus className="w-4 h-4 rotate-45" />
+                </button>
+            )}
+
             <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
                     <div className="bg-gray-100 p-1.5 rounded-md text-gray-500">
@@ -248,6 +291,27 @@ export default function DespachoPage() {
     const [isPedidoModalOpen, setIsPedidoModalOpen] = useState(false);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [directCargoVehicle, setDirectCargoVehicle] = useState<any>(null);
+
+    const handleUnassign = (itemId: string) => {
+        let movedPedido: any = null;
+
+        setVehiculos(prev => prev.map(v => {
+            const item = v.consolidado.find((p: any) => p.id === itemId);
+            if (item) {
+                movedPedido = item;
+                return { ...v, consolidado: v.consolidado.filter((p: any) => p.id !== itemId) };
+            }
+            return v;
+        }));
+
+        // Si no es carga directa, devolverlo a pendientes
+        if (movedPedido && !movedPedido.id.toString().startsWith('cargo-')) {
+            setPedidosPendientes(prev => [movedPedido, ...prev]);
+            toast.success("Pedido devuelto a la lista de pendientes");
+        } else if (movedPedido) {
+            toast.success("Carga directa eliminada");
+        }
+    };
 
     const { isLoading: isLoadingVehiculos } = useQuery({
         queryKey: ['vehiculos-despacho'],
@@ -506,10 +570,16 @@ export default function DespachoPage() {
                                                     </div>
                                                 ) : (
                                                     vehiculo.consolidado.map((pedido: any) => (
-                                                        <SortableItem key={pedido.id} id={pedido.id} pedido={pedido} onDetail={(p) => {
-                                                            setSelectedPedido(p);
-                                                            setIsPedidoModalOpen(true);
-                                                        }} />
+                                                        <SortableItem
+                                                            key={pedido.id}
+                                                            id={pedido.id}
+                                                            pedido={pedido}
+                                                            onDetail={(p) => {
+                                                                setSelectedPedido(p);
+                                                                setIsPedidoModalOpen(true);
+                                                            }}
+                                                            onRemove={handleUnassign}
+                                                        />
                                                     ))
                                                 )}
                                             </div>
@@ -637,33 +707,42 @@ export default function DespachoPage() {
 
             {/* Picking List Modal */}
             <Dialog open={isPickingListOpen} onOpenChange={setIsPickingListOpen}>
-                <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col overflow-hidden border-t-8 border-primary">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-3 text-2xl font-black">
-                            <div className="bg-primary text-white p-2 rounded-xl">
-                                <FileText className="w-6 h-6" />
+                <DialogContent className="sm:max-w-[800px] border-t-8 border-primary max-h-[90vh] flex flex-col">
+                    <DialogHeader className="shrink-0">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <DialogTitle className="text-3xl font-black flex items-center gap-2 uppercase tracking-tighter">
+                                    Guía de Carga / Despacho
+                                </DialogTitle>
+                                <DialogDescription className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">
+                                    Documento interno de almacén · {new Date().toLocaleDateString()}
+                                </DialogDescription>
                             </div>
-                            Picking List Consolidado
-                        </DialogTitle>
-                        <DialogDescription className="text-lg font-bold text-primary">
-                            Vehículo: {selectedVehiculo?.placa} · {selectedVehiculo?.chofer_nombre}
-                        </DialogDescription>
+                            <div className="text-right">
+                                <Badge className="bg-slate-900 text-white font-black px-4 py-1 text-xs">
+                                    {selectedVehiculo?.placa}
+                                </Badge>
+                                <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-widest">
+                                    Chofer: {selectedVehiculo?.chofer_nombre}
+                                </p>
+                            </div>
+                        </div>
                     </DialogHeader>
 
                     <div className="flex-1 overflow-y-auto mt-6 space-y-8 pr-2">
-                        <div className="bg-blue-50/40 p-6 rounded-2xl border-2 border-blue-100 relative overflow-hidden">
+                        <div className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-4 opacity-5">
-                                <Package className="w-24 h-24 text-blue-900" />
+                                <Package className="w-24 h-24 text-slate-900" />
                             </div>
-                            <h3 className="text-xs font-black text-blue-900 mb-4 uppercase tracking-widest flex items-center gap-2">
-                                <Package className="w-4 h-4" /> Resumen de Carga Agrupado
+                            <h3 className="text-xs font-black text-slate-900 mb-4 uppercase tracking-widest flex items-center gap-2">
+                                <Scale className="w-4 h-4" /> Resumen de Carga Consolidada
                             </h3>
                             <Table>
-                                <TableHeader>
-                                    <TableRow className="border-blue-200">
-                                        <TableHead className="text-blue-900 font-black">Producto</TableHead>
-                                        <TableHead className="text-right text-blue-900 font-black">Cantidad</TableHead>
-                                        <TableHead className="text-blue-900 font-black">Peso Est.</TableHead>
+                                <TableHeader className="bg-white/50">
+                                    <TableRow className="border-slate-200">
+                                        <TableHead className="text-slate-900 font-black">Producto</TableHead>
+                                        <TableHead className="text-right text-slate-900 font-black">Total Cantidad</TableHead>
+                                        <TableHead className="text-right text-slate-900 font-black">Peso Estimado</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -671,39 +750,49 @@ export default function DespachoPage() {
                                         ped.pedido_items?.forEach((it: any) => {
                                             const key = it.producto_id;
                                             if (!acc[key]) acc[key] = { desc: it.productos?.descripcion, cant: 0, und: it.unidad_medida || it.productos?.unidad_medida, peso: 0 };
-                                            acc[key].cant += Number(it.cantidad);
-                                            if (it.unidad_medida === 'KG') acc[key].peso += Number(it.cantidad);
+                                            const cant = Number(it.cantidad) || 0;
+                                            const pesoU = it.peso_kg || it.productos?.peso_kg || 0;
+
+                                            acc[key].cant += cant;
+                                            if (pesoU > 0) acc[key].peso += (cant * pesoU);
+                                            else if (it.unidad_medida === 'KG') acc[key].peso += cant;
                                         });
                                         return acc;
                                     }, {}) || {}).map((item: any, idx: number) => (
-                                        <TableRow key={idx} className="border-blue-100 hover:bg-blue-100/50 transition-colors">
+                                        <TableRow key={idx} className="border-slate-100 hover:bg-white transition-colors">
                                             <TableCell className="font-bold text-gray-800">{item.desc}</TableCell>
                                             <TableCell className="text-right">
-                                                <Badge className="bg-blue-600 text-white font-black px-3">
+                                                <Badge variant="outline" className="font-black px-3 border-slate-300">
                                                     {item.cant.toFixed(1)} {item.und}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="text-right font-medium text-blue-900">
+                                            <TableCell className="text-right font-black text-primary">
                                                 {item.peso > 0 ? `${item.peso.toFixed(1)} KG` : '-'}
                                             </TableCell>
                                         </TableRow>
                                     ))}
+                                    <TableRow className="bg-slate-100/50">
+                                        <TableCell colSpan={2} className="text-right font-black uppercase text-[10px] tracking-widest">Peso Total del Despacho:</TableCell>
+                                        <TableCell className="text-right font-black text-xl text-slate-900">
+                                            {calcularPesoTotal(selectedVehiculo?.consolidado || []).toFixed(1)} KG
+                                        </TableCell>
+                                    </TableRow>
                                 </TableBody>
                             </Table>
                         </div>
 
                         <div>
                             <h3 className="text-xs font-black text-gray-500 mb-4 uppercase tracking-widest flex items-center gap-2">
-                                <Truck className="w-4 h-4" /> Desglose por Comprobante
+                                <FileText className="w-4 h-4" /> Detalle por Documento / Pedido
                             </h3>
                             <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
                                 <Table>
                                     <TableHeader className="bg-gray-50/80">
                                         <TableRow>
-                                            <TableHead className="font-black">N° Reg</TableHead>
-                                            <TableHead className="font-black">Cliente</TableHead>
-                                            <TableHead className="font-black">Zona / Distrito</TableHead>
-                                            <TableHead className="text-right font-black">Carga</TableHead>
+                                            <TableHead className="font-black">Referencia</TableHead>
+                                            <TableHead className="font-black">Cargado Para</TableHead>
+                                            <TableHead className="font-black">Destino</TableHead>
+                                            <TableHead className="text-right font-black">Peso</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -712,7 +801,9 @@ export default function DespachoPage() {
                                                 <TableCell className="font-black text-primary">{p.numero}</TableCell>
                                                 <TableCell className="text-xs font-bold">{p.clientes?.razon_social}</TableCell>
                                                 <TableCell>
-                                                    <Badge variant="outline" className="text-[10px] font-bold border-gray-200 bg-gray-50">{p.clientes?.distrito}</Badge>
+                                                    <Badge variant="outline" className="text-[10px] font-bold border-gray-200 bg-gray-50">
+                                                        {p.clientes?.distrito || 'Carga Directa'}
+                                                    </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right font-bold text-gray-700">
                                                     {calcularPesoTotal([p]).toFixed(1)} KG
@@ -725,14 +816,14 @@ export default function DespachoPage() {
                         </div>
                     </div>
 
-                    <DialogFooter className="mt-6 pt-6 border-t gap-3">
-                        <Button variant="outline" className="px-8 border-2 font-bold" onClick={() => setIsPickingListOpen(false)}>Cerrar</Button>
-                        <Button className="flex-1 bg-primary hover:bg-primary/90 text-sm font-black h-12 rounded-xl shadow-lg shadow-primary/20" onClick={() => {
-                            toast.success("Imprimiendo Picking List...");
+                    <DialogFooter className="mt-6 pt-6 border-t gap-3 shrink-0">
+                        <Button variant="outline" className="px-8 border-2 font-bold h-12 rounded-xl" onClick={() => setIsPickingListOpen(false)}>Cerrar</Button>
+                        <Button className="flex-1 bg-slate-900 hover:bg-slate-800 text-sm font-black h-12 rounded-xl shadow-xl shadow-slate-200" onClick={() => {
+                            toast.success("Preparando vista de impresión...");
                             window.print();
                         }}>
-                            <FileText className="w-5 h-5 mr-3" />
-                            IMPRIMIR GUÍA DE DESPACHO
+                            <Printer className="w-5 h-5 mr-3" />
+                            IMPRIMIR HOJA DE CARGA
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -741,12 +832,4 @@ export default function DespachoPage() {
     );
 }
 
-function calcularPesoTotal(peds: any[]) {
-    return peds.reduce((acc, p) => {
-        const pPeso = p.pedido_items?.reduce((pa: number, it: any) => {
-            if (it.unidad_medida === 'KG') return pa + (Number(it.cantidad) || 0);
-            return pa;
-        }, 0) || 0;
-        return acc + pPeso;
-    }, 0);
-}
+// End of file
