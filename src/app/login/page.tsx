@@ -21,12 +21,23 @@ export default function LoginPage({
     const handleSubmit = async (formData: FormData) => {
         setIsLoading(true);
         try {
-            await login(formData);
+            const result = await login(formData) as { error?: string, success?: boolean };
+            if (result?.error) {
+                setIsLoading(false);
+                toast.error(result.error);
+                return;
+            }
             toast.success("¡Bienvenido al sistema Agrocar!", {
                 description: "Cargando panel de control..."
             });
+            // Delay redirect to show success state
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
         } catch (error) {
             setIsLoading(false);
+            // Next.js redirect throws an error, we ignore it if it's a redirect
+            if ((error as any).digest?.includes('NEXT_REDIRECT')) return;
             toast.error("Error al iniciar sesión");
         }
     };

@@ -16,12 +16,13 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-function SortableItem({ id, pedido }: { id: string, pedido: any }) {
+function SortableItem({ id, pedido, onDetail }: { id: string, pedido: any, onDetail: (p: any) => void }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
     const style = { transform: CSS.Transform.toString(transform), transition };
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}
+            onClick={() => onDetail(pedido)}
             className="group bg-white p-3 rounded-md border shadow-sm cursor-grab hover:border-primary active:cursor-grabbing transition-all hover:shadow-md">
             <div className="flex justify-between items-start mb-2">
                 <span className="font-bold text-sm">{pedido.numero}</span>
@@ -35,7 +36,7 @@ function SortableItem({ id, pedido }: { id: string, pedido: any }) {
                 <span className="flex items-center gap-1 font-semibold text-blue-600">S/ {pedido.total}</span>
             </div>
             <div className="mt-3 pt-2 border-t opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="sm" className="w-full h-7 text-[10px] text-gray-400 hover:text-primary" onClick={(e) => { e.stopPropagation(); toast.info(`Pedido ${pedido.numero}: ${pedido.clientes?.razon_social}`); }}>
+                <Button variant="ghost" size="sm" className="w-full h-7 text-[10px] text-gray-400 hover:text-primary" onClick={(e) => { e.stopPropagation(); onDetail(pedido); }}>
                     Ver Detalle
                 </Button>
             </div>
@@ -51,6 +52,8 @@ export default function DespachoPage() {
     const [vehiculos, setVehiculos] = useState<any[]>([]);
     const [selectedVehiculo, setSelectedVehiculo] = useState<any>(null);
     const [isPickingListOpen, setIsPickingListOpen] = useState(false);
+    const [selectedPedido, setSelectedPedido] = useState<any>(null);
+    const [isPedidoModalOpen, setIsPedidoModalOpen] = useState(false);
 
     const { isLoading: isLoadingVehiculos } = useQuery({
         queryKey: ['vehiculos-despacho'],
@@ -71,7 +74,9 @@ export default function DespachoPage() {
     const { isLoading: isLoadingPedidos } = useQuery({
         queryKey: ['pedidos-pendientes'],
         queryFn: async () => {
-            const { data, error } = await supabase.from('pedidos').select('*, clientes(razon_social, distrito)').eq('estado', 'pendiente');
+            const { data, error } = await supabase.from('pedidos')
+                .select('*, clientes(razon_social, distrito, direccion), pedido_items(*, productos(descripcion, unidad_medida))')
+                .eq('estado', 'pendiente');
             if (error) throw error;
             setPedidosPendientes(data || []);
             return data;
@@ -223,7 +228,10 @@ export default function DespachoPage() {
                             <CardContent className="flex-1 p-3 overflow-y-auto">
                                 <div className="space-y-3 min-h-[100px]">
                                     {pedidosPendientes.map(pedido => (
-                                        <SortableItem key={pedido.id} id={pedido.id} pedido={pedido} />
+                                        <SortableItem key={pedido.id} id={pedido.id} pedido={pedido} onDetail={(p) => {
+                                            setSelectedPedido(p);
+                                            setIsPedidoModalOpen(true);
+                                        }} />
                                     ))}
                                     {pedidosPendientes.length === 0 && !isLoadingPedidos && (
                                         <div className="text-center text-sm text-gray-400 mt-10">No hay pedidos pendientes.</div>
@@ -259,7 +267,10 @@ export default function DespachoPage() {
                                                 </div>
                                             ) : (
                                                 vehiculo.consolidado.map((pedido: any) => (
-                                                    <SortableItem key={pedido.id} id={pedido.id} pedido={pedido} />
+                                                    <SortableItem key={pedido.id} id={pedido.id} pedido={pedido} onDetail={(p) => {
+                                                        setSelectedPedido(p);
+                                                        setIsPedidoModalOpen(true);
+                                                    }} />
                                                 ))
                                             )}
                                         </div>
@@ -286,57 +297,134 @@ export default function DespachoPage() {
                 </div>
             </DndContext>
 
-            <Dialog open={isPickingListOpen} onOpenChange={setIsPickingListOpen}>
-                <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+            <Dialog open={isPedidoModalOpen} onOpenChange={setIsPedidoModalOpen}>
+                <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Truck className="w-5 h-5 text-primary" />
-                            Picking List - {selectedVehiculo?.placa}
-                        </DialogTitle>
+                        <DialogTitle>Detalle del Pedido {selectedPedido?.numero}</DialogTitle>
                         <DialogDescription>
-                            Resumen de pedidos asignados a {selectedVehiculo?.chofer_nombre}
+                            {selectedPedido?.clientes?.razon_social} - {selectedPedido?.clientes?.distrito}
                         </DialogDescription>
                     </DialogHeader>
-
-                    <div className="flex-1 overflow-y-auto mt-4">
+                    <div className="py-4 space-y-4">
+                        <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded border">
+                            <MapPin className="w-3 h-3 inline mr-1" /> {selectedPedido?.clientes?.direccion || 'Sin dirección registrada'}
+                        </div>
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Pedido</TableHead>
-                                    <TableHead>Cliente</TableHead>
-                                    <TableHead>Distrito</TableHead>
-                                    <TableHead className="text-right">Total (S/)</TableHead>
+                                    <TableHead>Producto</TableHead>
+                                    <TableHead className="text-right">Cant.</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {selectedVehiculo?.consolidado.map((p: any) => (
-                                    <TableRow key={p.id}>
-                                        <TableCell className="font-bold">{p.numero}</TableCell>
-                                        <TableCell className="text-xs">{p.clientes?.razon_social}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="text-[9px]">{p.clientes?.distrito}</Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right font-medium">S/ {p.total.toFixed(2)}</TableCell>
+                                {selectedPedido?.pedido_items?.map((it: any, idx: number) => (
+                                    <TableRow key={idx}>
+                                        <TableCell className="text-xs">{it.productos?.descripcion}</TableCell>
+                                        <TableCell className="text-right">{it.cantidad} {it.productos?.unidad_medida}</TableCell>
+                                        <TableCell className="text-right font-medium">S/ {(it.cantidad * it.precio_unitario).toFixed(2)}</TableCell>
                                     </TableRow>
                                 ))}
-                                <TableRow className="bg-gray-50 font-bold">
-                                    <TableCell colSpan={3} className="text-right uppercase text-[10px]">Carga Total Consolidada</TableCell>
-                                    <TableCell className="text-right text-primary">
-                                        S/ {selectedVehiculo?.consolidado.reduce((acc: number, p: any) => acc + p.total, 0).toFixed(2)}
-                                    </TableCell>
-                                </TableRow>
                             </TableBody>
                         </Table>
+                    </div>
+                    <DialogFooter>
+                        <Button className="w-full" onClick={() => setIsPedidoModalOpen(false)}>Cerrar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isPickingListOpen} onOpenChange={setIsPickingListOpen}>
+                <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Truck className="w-5 h-5 text-primary" />
+                            Picking List Consolidado - {selectedVehiculo?.placa}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Resumen de carga total para {selectedVehiculo?.chofer_nombre}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto mt-4 space-y-6">
+                        {/* Resumen por Producto (Consolidado) */}
+                        <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                            <h3 className="text-sm font-bold text-blue-900 mb-3 uppercase flex items-center gap-2">
+                                <FileText className="w-4 h-4" /> Resumen de Carga (Total Almacén)
+                            </h3>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="border-blue-200">
+                                        <TableHead className="text-blue-900">Producto</TableHead>
+                                        <TableHead className="text-right text-blue-900">Cant. Total</TableHead>
+                                        <TableHead className="text-blue-900">Und.</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {Object.values(selectedVehiculo?.consolidado.reduce((acc: any, ped: any) => {
+                                        ped.pedido_items?.forEach((it: any) => {
+                                            const key = it.producto_id;
+                                            if (!acc[key]) acc[key] = { desc: it.productos?.descripcion, cant: 0, und: it.productos?.unidad_medida };
+                                            acc[key].cant += it.cantidad;
+                                        });
+                                        return acc;
+                                    }, {}) || {}).map((item: any, idx: number) => (
+                                        <TableRow key={idx} className="border-blue-100">
+                                            <TableCell className="font-medium">{item.desc}</TableCell>
+                                            <TableCell className="text-right font-bold text-blue-700">{item.cant}</TableCell>
+                                            <TableCell className="text-xs text-gray-500">{item.und}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+
+                        {/* Detalle por Pedido */}
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase">Detalle por Comprobante</h3>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Pedido</TableHead>
+                                        <TableHead>Cliente</TableHead>
+                                        <TableHead>Distrito</TableHead>
+                                        <TableHead className="text-right">Items</TableHead>
+                                        <TableHead className="text-right">Total (S/)</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {selectedVehiculo?.consolidado.map((p: any) => (
+                                        <TableRow key={p.id}>
+                                            <TableCell className="font-bold">{p.numero}</TableCell>
+                                            <TableCell className="text-xs">{p.clientes?.razon_social}</TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className="text-[9px]">{p.clientes?.distrito}</Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right text-xs text-gray-500">
+                                                {p.pedido_items?.length} sku
+                                            </TableCell>
+                                            <TableCell className="text-right font-medium">S/ {p.total.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                    <TableRow className="bg-gray-50 font-bold">
+                                        <TableCell colSpan={4} className="text-right uppercase text-[10px]">Carga Total Consolidada</TableCell>
+                                        <TableCell className="text-right text-primary">
+                                            S/ {selectedVehiculo?.consolidado.reduce((acc: number, p: any) => acc + p.total, 0).toFixed(2)}
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
                     </div>
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsPickingListOpen(false)}>Cerrar</Button>
-                        <Button variant="default" onClick={() => {
+                        <Button variant="default" className="bg-primary hover:bg-primary/90" onClick={() => {
                             toast.success("Enviando Picking List a la impresora térmica...");
                             setIsPickingListOpen(false);
                         }}>
                             <FileText className="w-4 h-4 mr-2" />
-                            Imprimir para Almacén
+                            Imprimir Guía de Carga
                         </Button>
                     </DialogFooter>
                 </DialogContent>

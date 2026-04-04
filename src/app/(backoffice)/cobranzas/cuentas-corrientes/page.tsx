@@ -14,6 +14,7 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { registrarPago } from '../actions';
 
 function CuentasCorrientesContent() {
     const params = useSearchParams();
@@ -90,44 +91,15 @@ function CuentasCorrientesContent() {
 
     const mutationPagar = useMutation({
         mutationFn: async (data: { comprobanteId: string, monto: number, metodo: string, referencia: string }) => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('Sesión expirada');
-
-            const { data: usuario, error: userError } = await supabase
-                .from('usuarios')
-                .select('empresa_id')
-                .eq('id', user.id)
-                .single();
-
-            if (userError || !usuario) throw new Error('Usuario no vinculado a empresa');
-
-            // 1. Insertar Pago
-            const { error: pErr } = await supabase.from('pagos').insert([{
-                empresa_id: usuario.empresa_id,
-                comprobante_id: data.comprobanteId,
+            const result = await registrarPago({
+                comprobanteId: data.comprobanteId,
                 cliente_id: clienteId || '',
-                fecha: new Date().toISOString().split('T')[0],
                 monto: data.monto,
-                metodo_pago: data.metodo,
-                usuario_cobrador_id: user.id,
-                observaciones: data.referencia ? `Ref: ${data.referencia}` : ''
-            }]);
-
-            if (pErr) throw pErr;
-
-            // 2. Actualizar Comprobante (monto_pagado acumulativo)
-            const compRaw = deudas?.find(d => d.id === data.comprobanteId);
-            if (!compRaw) throw new Error('Comprobante no encontrado');
-
-            const nuevoMontoPagado = (compRaw.total - compRaw.saldo) + data.monto;
-            const estadoFinal = nuevoMontoPagado >= compRaw.total ? 'pagado' : 'parcial';
-
-            const { error: cErr } = await supabase.from('comprobantes').update({
-                monto_pagado: nuevoMontoPagado,
-                estado_pago: estadoFinal
-            }).eq('id', data.comprobanteId);
-
-            if (cErr) throw cErr;
+                metodo: data.metodo,
+                referencia: data.referencia
+            });
+            if (result.error) throw new Error(result.error);
+            return result;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['deudas', clienteId || ''] });

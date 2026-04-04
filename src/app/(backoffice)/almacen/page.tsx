@@ -1,7 +1,5 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { PackageSearch, History, ArrowRightLeft, ArrowUpCircle, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -9,8 +7,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { registrarTransferencia } from './actions';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { useState } from 'react';
 
 export default function AlmacenPage() {
+    const queryClient = useQueryClient();
+    const [isTransferOpen, setIsTransferOpen] = useState(false);
+    const [transferData, setTransferData] = useState({
+        producto_id: '',
+        almacen_origen_id: '',
+        almacen_destino_id: '',
+        cantidad: 0,
+        motivo: 'Transferencia interna'
+    });
+
     const { data: stockData, isLoading } = useQuery({
         queryKey: ['stockGlobal'],
         queryFn: async () => {
@@ -60,9 +76,82 @@ export default function AlmacenPage() {
                             <ArrowUpCircle className="w-4 h-4 mr-2" /> Ingreso de Mercadería
                         </Button>
                     </Link>
-                    <Button variant="outline" onClick={() => toast.info("Módulo de Transferencias en desarrollo para la siguiente fase.")}>
-                        <ArrowRightLeft className="w-4 h-4 mr-2 text-gray-600" /> Transferencia
-                    </Button>
+                    <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+                        <DialogTrigger>
+                            <Button variant="outline">
+                                <ArrowRightLeft className="w-4 h-4 mr-2 text-gray-600" /> Transferencia
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Registrar Transferencia</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label>Producto</Label>
+                                    <Select onValueChange={(v: any) => setTransferData({ ...transferData, producto_id: v })}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Seleccione producto" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {stockData?.map((it: any, idx: number) => (
+                                                <SelectItem key={idx} value={it.productos?.id || it.productos?.[0]?.id}>
+                                                    {it.productos?.codigo || it.productos?.[0]?.codigo} - {it.productos?.descripcion || it.productos?.[0]?.descripcion}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Almacén Origen</Label>
+                                        <Select onValueChange={(v: any) => setTransferData({ ...transferData, almacen_origen_id: v })}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Origen" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">Almacén Central</SelectItem>
+                                                <SelectItem value="2">Almacén Lima Sur</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Almacén Destino</Label>
+                                        <Select onValueChange={(v: any) => setTransferData({ ...transferData, almacen_destino_id: v })}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Destino" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">Almacén Central</SelectItem>
+                                                <SelectItem value="2">Almacén Lima Sur</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Cantidad</Label>
+                                    <Input type="number" onChange={(e) => setTransferData({ ...transferData, cantidad: parseFloat(e.target.value) })} />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button onClick={async () => {
+                                    if (!transferData.producto_id || !transferData.almacen_origen_id || !transferData.almacen_destino_id || transferData.cantidad <= 0) {
+                                        toast.error("Por favor complete todos los campos");
+                                        return;
+                                    }
+                                    const res = await registrarTransferencia(transferData);
+                                    if (res.success) {
+                                        toast.success("Transferencia realizada");
+                                        setIsTransferOpen(false);
+                                        queryClient.invalidateQueries({ queryKey: ['stockGlobal'] });
+                                        queryClient.invalidateQueries({ queryKey: ['kardexGlobal'] });
+                                    } else {
+                                        toast.error(res.error || "Error al transferir");
+                                    }
+                                }}>Confirmar Transferencia</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </div>
             </div>
 
@@ -95,7 +184,7 @@ export default function AlmacenPage() {
                                 ) : stockData?.length === 0 ? (
                                     <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-500">Sin existencias registradas.</TableCell></TableRow>
                                 ) : (
-                                    stockData?.map((item, idx) => (
+                                    stockData?.map((item: any, idx: number) => (
                                         <TableRow key={idx}>
                                             <TableCell className="font-medium text-gray-600">
                                                 {/* @ts-ignore */}

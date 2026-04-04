@@ -10,6 +10,8 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { registrarIngreso } from '../actions';
+import { toast } from 'sonner';
 
 export default function IngresoMercaderia() {
     const router = useRouter();
@@ -56,63 +58,25 @@ export default function IngresoMercaderia() {
         mutationFn: async () => {
             if (items.length === 0) throw new Error("No hay items para ingresar");
 
-            const userRes = await supabase.auth.getUser();
-            const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userRes.data.user?.id).single();
-            const { data: almacen } = await supabase.from('almacenes').select('id').eq('empresa_id', usuario?.empresa_id).limit(1).single();
+            const result = await registrarIngreso({
+                proveedor,
+                tipoDoc,
+                serieDoc,
+                correlativo,
+                items
+            });
 
-            // 1. Create Compra
-            const { data: compra, error: eCompra } = await supabase.from('compras').insert([{
-                empresa_id: usuario?.empresa_id,
-                usuario_id: userRes.data.user?.id,
-                proveedor_nombre: proveedor || 'Proveedor Genérico',
-                tipo_doc: tipoDoc,
-                serie_doc: serieDoc,
-                numero_doc: correlativo,
-                fecha: new Date().toISOString(),
-                subtotal: items.reduce((acc, it) => acc + (it.cantidad * it.costo), 0),
-                total: items.reduce((acc, it) => acc + (it.cantidad * it.costo), 0)
-            }]).select().single();
-
-            if (eCompra) throw eCompra;
-
-            // 2. Insert items and stock movimientos
-            for (const it of items) {
-                // Insert into compra_items
-                await supabase.from('compra_items').insert([{
-                    compra_id: compra.id,
-                    producto_id: it.producto_id,
-                    cantidad: it.cantidad,
-                    costo_unitario: it.costo,
-                    total: it.cantidad * it.costo
-                }]);
-
-                // Insert into stock_movimientos
-                await supabase.from('stock_movimientos').insert([{
-                    empresa_id: usuario?.empresa_id,
-                    producto_id: it.producto_id,
-                    almacen_id: almacen?.id,
-                    tipo: 'entrada',
-                    motivo: 'Compra',
-                    referencia_id: compra.id,
-                    referencia_tipo: 'compras',
-                    cantidad: it.cantidad,
-                    costo_unitario: it.costo,
-                    usuario_id: userRes.data.user?.id
-                }]);
-
-                // Read current stock
-                const { data: currentStock } = await supabase.from('stock').select('id, cantidad').eq('producto_id', it.producto_id).eq('almacen_id', almacen?.id).single();
-
-                if (currentStock) {
-                    await supabase.from('stock').update({ cantidad: Number(currentStock.cantidad) + Number(it.cantidad) }).eq('id', currentStock.id);
-                } else {
-                    await supabase.from('stock').insert([{ producto_id: it.producto_id, almacen_id: almacen?.id, cantidad: it.cantidad }]);
-                }
-            }
+            if (result.error) throw new Error(result.error);
+            return result;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['kardex'] });
+            queryClient.invalidateQueries({ queryKey: ['kardexGlobal'] });
+            queryClient.invalidateQueries({ queryKey: ['stockGlobal'] });
+            toast.success("Ingreso de mercadería registrado con éxito");
             router.push('/almacen');
+        },
+        onError: (error: any) => {
+            toast.error("Error al registrar ingreso: " + error.message);
         }
     });
 
