@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -80,10 +81,19 @@ export default function DashboardPage() {
                     <p className="text-slate-500 font-medium mt-1">Inteligencia de negocios y monitoreo operativo en tiempo real.</p>
                 </div>
                 <div className="flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-                    <Button variant="outline" size="sm" className="rounded-xl font-bold text-xs uppercase tracking-widest border-2">Exportar Reporte</Button>
-                    <Badge className="bg-blue-600 text-white border-none font-bold px-4 py-2 rounded-xl h-9 hover:bg-blue-700 cursor-pointer">
-                        LIVE MONITORING
-                    </Badge>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl font-bold text-xs uppercase tracking-widest border-2"
+                        onClick={() => toast.success("Generando reporte Excel...", { description: "Se descargará en breve." })}
+                    >
+                        Exportar Reporte
+                    </Button>
+                    <Link href="/supervision/mapa">
+                        <Badge className="bg-blue-600 text-white border-none font-bold px-4 py-2 rounded-xl h-9 hover:bg-blue-700 cursor-pointer flex items-center justify-center">
+                            LIVE MONITORING
+                        </Badge>
+                    </Link>
                 </div>
             </div>
 

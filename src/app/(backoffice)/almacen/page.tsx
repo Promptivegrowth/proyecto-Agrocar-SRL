@@ -35,7 +35,7 @@ export default function AlmacenPage() {
                 .select(`
                     cantidad,
                     costo_promedio,
-                    productos(codigo, descripcion, unidad_medida),
+                    productos(id, codigo, descripcion, unidad_medida),
                     almacenes(nombre)
                 `)
                 .order('cantidad', { ascending: false });

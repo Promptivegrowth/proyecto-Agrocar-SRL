@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -33,22 +34,24 @@ export default function AppVendedorDashboard() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
     const [isAsistenciaOpen, setIsAsistenciaOpen] = useState(false);
-    const [prospectData, setProspectData] = useState({ razon_social: '', numero_documento: '', direccion: '', telefono: '' });
+    const [prospectData, setProspectData] = useState({ razon_social: '', numero_documento: '', direccion: '', telefono: '', tipo_documento: 'DNI' });
     const [checkoutData, setCheckoutData] = useState({ resultado: 'pedido_tomado', observaciones: '' });
 
     // 1. Visita Activa
     const { data: visitaActiva, isLoading: loadingVisita } = useQuery({
         queryKey: ['visita-activa'],
         queryFn: async () => {
-            const userRes = await supabase.auth.getUser();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
             const { data } = await supabase
                 .from('visitas_gps')
                 .select('*, clientes(razon_social)')
-                .eq('vendedor_id', userRes.data.user?.id)
+                .eq('vendedor_id', user.id)
                 .is('hora_checkout', null)
                 .maybeSingle();
             return data;
-        }
+        },
+        enabled: true
     });
 
     // 2. Clientes con estado de visita hoy
@@ -138,7 +141,7 @@ export default function AppVendedorDashboard() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
             setIsDialogOpen(false);
-            setProspectData({ razon_social: '', numero_documento: '', direccion: '', telefono: '' });
+            setProspectData({ razon_social: '', numero_documento: '', direccion: '', telefono: '', tipo_documento: 'DNI' });
             toast.success('Prospecto registrado con éxito');
         }
     });
@@ -373,13 +376,27 @@ export default function AppVendedorDashboard() {
                                 onChange={(e) => setProspectData({ ...prospectData, razon_social: e.target.value })}
                             />
                         </div>
-                        <div className="space-y-2">
-                            <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">RUC / DNI</Label>
-                            <Input
-                                className="h-12 rounded-xl bg-slate-50 border-none"
-                                value={prospectData.numero_documento}
-                                onChange={(e) => setProspectData({ ...prospectData, numero_documento: e.target.value })}
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">Tipo Doc.</Label>
+                                <Select onValueChange={(v: string | null) => v && setProspectData({ ...prospectData, tipo_documento: v })}>
+                                    <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none">
+                                        <SelectValue placeholder="DNI / RUC" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="DNI">DNI</SelectItem>
+                                        <SelectItem value="RUC">RUC</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">RUC / DNI / Número</Label>
+                                <Input
+                                    className="h-12 rounded-xl bg-slate-50 border-none"
+                                    value={prospectData.numero_documento}
+                                    onChange={(e) => setProspectData({ ...prospectData, numero_documento: e.target.value })}
+                                />
+                            </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
