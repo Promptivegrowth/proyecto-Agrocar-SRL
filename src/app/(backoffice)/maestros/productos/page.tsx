@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit2, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -38,9 +39,25 @@ export default function ProductosPage() {
 
     const mutationSave = useMutation({
         mutationFn: async (product: any) => {
-            const userRes = await supabase.auth.getUser();
-            const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userRes.data.user?.id).single();
-            const payload = { ...product, empresa_id: usuario?.empresa_id };
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                toast.error('Sesión expirada. Por favor, inicie sesión nuevamente.');
+                window.location.href = '/login';
+                return;
+            }
+
+            const { data: usuario, error: userError } = await supabase
+                .from('usuarios')
+                .select('empresa_id')
+                .eq('id', user.id)
+                .single();
+
+            if (userError || !usuario) {
+                console.error('Error fetching user data:', userError);
+                throw new Error('No se pudo encontrar la empresa vinculada al usuario.');
+            }
+
+            const payload = { ...product, empresa_id: usuario.empresa_id };
 
             if (currentProduct) {
                 const { error } = await supabase.from('productos').update(payload).eq('id', currentProduct.id);
@@ -52,8 +69,12 @@ export default function ProductosPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['productos'] });
+            toast.success(currentProduct ? 'Producto actualizado' : 'Producto creado correctamente');
             setIsDialogOpen(false);
             setCurrentProduct(null);
+        },
+        onError: (error: any) => {
+            toast.error('Error al guardar: ' + (error.message || 'Error desconocido'));
         }
     });
 
@@ -62,7 +83,13 @@ export default function ProductosPage() {
             const { error } = await supabase.from('productos').update({ activo: false }).eq('id', id);
             if (error) throw error;
         },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['productos'] })
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['productos'] });
+            toast.success('Producto desactivado');
+        },
+        onError: (error: any) => {
+            toast.error('Error al eliminar: ' + error.message);
+        }
     });
 
     const openEdit = (p: any) => {

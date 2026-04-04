@@ -169,12 +169,112 @@ async function seed() {
 
     // 8. Create Vehiculos
     console.log('🚚 Creating vehicles...');
-    await supabase.from('vehiculos').upsert([
+    const { data: vehiculos } = await supabase.from('vehiculos').upsert([
         { empresa_id, placa: 'AHM-001', marca: 'Hino', capacidad_kg: 4000, chofer_id: repartidor?.id },
         { empresa_id, placa: 'BQO-992', marca: 'Isuzu', capacidad_kg: 5000 }
-    ], { onConflict: 'placa' });
+    ], { onConflict: 'placa' }).select();
 
-    // 9. Inform output
+    // 9. Seed Pedidos (Pre-venta)
+    console.log('📝 Seeding 15 orders (pedidos)...');
+    const { data: clientes } = await supabase.from('clientes').select('id').limit(10);
+    const estados = ['confirmado', 'pendiente', 'entregado', 'facturado'];
+
+    if (clientes && insertedProductos) {
+        for (let i = 0; i < 15; i++) {
+            const cliente_id = clientes[i % clientes.length].id;
+            const pedidoNumero = `PV-2026-${String(i + 1).padStart(5, '0')}`;
+            const { data: pedido, error: pedError } = await supabase.from('pedidos').insert({
+                empresa_id,
+                numero: pedidoNumero,
+                cliente_id,
+                vendedor_id: vendedor?.id,
+                fecha_pedido: new Date().toISOString().split('T')[0],
+                estado: estados[i % estados.length],
+                total: 200 + Math.random() * 500,
+                vehiculo_id: vehiculos?.[0]?.id
+            }).select().single();
+
+            if (pedido) {
+                // Add items to pedido
+                await supabase.from('pedido_items').insert([
+                    {
+                        pedido_id: pedido.id,
+                        producto_id: insertedProductos[i % 5].id,
+                        cantidad: 5,
+                        precio_unitario: 10
+                    },
+                    {
+                        pedido_id: pedido.id,
+                        producto_id: insertedProductos[(i + 1) % 5].id,
+                        cantidad: 2,
+                        precio_unitario: 15
+                    }
+                ]);
+
+                // 10. Seed Comprobantes for 'facturado' orders
+                if (pedido.estado === 'facturado' || i % 3 === 0) {
+                    console.log(`🧾 Seeding invoice for ${pedidoNumero}...`);
+                    const serie = i % 2 === 0 ? 'F001' : 'B001';
+                    const { data: comp } = await supabase.from('comprobantes').insert({
+                        empresa_id,
+                        tipo: serie.startsWith('F') ? '01' : '03',
+                        serie,
+                        correlativo: 100 + i,
+                        numero_completo: `${serie}-${100 + i}`,
+                        fecha_emision: new Date().toISOString().split('T')[0],
+                        pedido_id: pedido.id,
+                        cliente_id,
+                        total: pedido.total,
+                        estado_pago: i % 4 === 0 ? 'pagado' : 'pendiente', // 25% paid
+                        sunat_estado: 'aceptado',
+                        monto_pagado: i % 4 === 0 ? pedido.total : 0
+                    }).select().single();
+
+                    // 11. Seed Pagos for paid invoices
+                    if (comp && comp.estado_pago === 'pagado') {
+                        await supabase.from('pagos').insert({
+                            empresa_id,
+                            comprobante_id: comp.id,
+                            cliente_id,
+                            fecha: new Date().toISOString().split('T')[0],
+                            monto: comp.total,
+                            metodo_pago: 'yape',
+                            usuario_cobrador_id: vendedor?.id
+                        });
+                    }
+                }
+            }
+        }
+
+        // 12. Seed Consolidados Despacho
+        console.log('🚛 Seeding 3 delivery blocks (consolidados)...');
+        for (let j = 0; j < 3; j++) {
+            const { data: cons } = await supabase.from('consolidados_despacho').insert({
+                empresa_id,
+                numero: `C-2026-${String(j + 1).padStart(4, '0')}`,
+                fecha: new Date().toISOString().split('T')[0],
+                vehiculo_id: vehiculos?.[j % (vehiculos?.length || 1)].id,
+                chofer_id: repartidor?.id,
+                estado: j === 0 ? 'en_ruta' : 'preparando',
+                total_pedidos: 3
+            }).select().single();
+
+            if (cons) {
+                // Link some pedidos to this consolidado
+                const { data: pedsSub } = await supabase.from('pedidos').select('id').eq('estado', 'pendiente').limit(3);
+                if (pedsSub) {
+                    for (const p of pedsSub) {
+                        await supabase.from('pedidos').update({
+                            consolidado_id: cons.id,
+                            estado: j === 0 ? 'en_despacho' : 'pendiente'
+                        }).eq('id', p.id);
+                    }
+                }
+            }
+        }
+    }
+
+    // 13. Inform output
     console.log('✅ Seeding completed!');
     console.log('\n--- LOGIN CREDENTIALS ---');
     roles.forEach(role => {

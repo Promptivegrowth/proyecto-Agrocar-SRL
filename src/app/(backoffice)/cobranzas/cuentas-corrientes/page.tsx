@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 function CuentasCorrientesContent() {
     const params = useSearchParams();
@@ -63,29 +64,48 @@ function CuentasCorrientesContent() {
             const comp = deudas?.find(d => d.id === comprobanteId);
             if (!comp) return;
 
-            const userRes = await supabase.auth.getUser();
-            const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userRes.data.user?.id).single();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                toast.error('Sesión expirada. Reingrese.');
+                window.location.href = '/login';
+                return;
+            }
+
+            const { data: usuario, error: userError } = await supabase
+                .from('usuarios')
+                .select('empresa_id')
+                .eq('id', user.id)
+                .single();
+
+            if (userError || !usuario) throw new Error('Usuario no vinculado a empresa');
 
             // Insert pago full mapping
-            await supabase.from('pagos').insert([{
-                empresa_id: usuario?.empresa_id,
+            const { error: pErr } = await supabase.from('pagos').insert([{
+                empresa_id: usuario.empresa_id,
                 comprobante_id: comprobanteId,
                 cliente_id: clienteId,
                 fecha: new Date().toISOString().split('T')[0],
                 monto: comp.saldo,
                 metodo_pago: 'efectivo',
-                usuario_cobrador_id: userRes.data.user?.id
+                usuario_cobrador_id: user.id
             }]);
 
+            if (pErr) throw pErr;
+
             // Update comprobante
-            await supabase.from('comprobantes').update({
+            const { error: cErr } = await supabase.from('comprobantes').update({
                 monto_pagado: comp.total,
                 estado_pago: 'pagado'
             }).eq('id', comprobanteId);
+
+            if (cErr) throw cErr;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['deudas', clienteId] });
-            alert("Pago total registrado exitosamente.");
+            toast.success("Pago total registrado exitosamente.");
+        },
+        onError: (error: any) => {
+            toast.error("Error al registrar pago: " + error.message);
         }
     });
 

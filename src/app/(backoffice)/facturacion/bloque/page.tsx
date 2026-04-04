@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 export default function FacturacionBloquePage() {
     const queryClient = useQueryClient();
@@ -39,8 +40,20 @@ export default function FacturacionBloquePage() {
 
     const mutationProcesar = useMutation({
         mutationFn: async (consId: string) => {
-            const userRes = await supabase.auth.getUser();
-            const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userRes.data.user?.id).single();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                toast.error('Sesión expirada. Reingrese.');
+                window.location.href = '/login';
+                return;
+            }
+
+            const { data: usuario, error: userError } = await supabase
+                .from('usuarios')
+                .select('empresa_id')
+                .eq('id', user.id)
+                .single();
+
+            if (userError || !usuario) throw new Error('Usuario no vinculado a empresa');
 
             // Fetch pedidos for this consolidado
             const { data: pedidos, error: errPed } = await supabase
@@ -53,8 +66,8 @@ export default function FacturacionBloquePage() {
             for (const ped of pedidos) {
                 // Generate comprobante
                 const isBoleta = ped.clientes?.tipo_documento === 'DNI';
-                await supabase.from('comprobantes').insert([{
-                    empresa_id: usuario?.empresa_id,
+                const { error: insErr } = await supabase.from('comprobantes').insert([{
+                    empresa_id: usuario.empresa_id,
                     tipo: isBoleta ? '03' : '01',
                     serie: isBoleta ? 'B001' : 'F001',
                     correlativo: Math.floor(Math.random() * 100000),
@@ -66,14 +79,15 @@ export default function FacturacionBloquePage() {
                     num_doc_cliente: ped.clientes?.numero_documento,
                     razon_social_cliente: ped.clientes?.razon_social,
                     direccion_cliente: `${ped.clientes?.direccion || ''} ${ped.clientes?.distrito || ''}`,
-                    subtotal: ped.subtotal,
+                    subtotal: ped.subtotal || 0,
                     igv: ped.igv || (ped.total * 0.18),
                     total: ped.total,
                     condicion_pago: 'credito',
                     estado_pago: 'pendiente',
                     sunat_estado: 'aceptado',
-                    usuario_emisor_id: userRes.data.user?.id
+                    usuario_emisor_id: user.id
                 }]);
+                if (insErr) throw insErr;
 
                 // Update pedido status
                 await supabase.from('pedidos').update({ estado: 'facturado' }).eq('id', ped.id);
@@ -85,7 +99,10 @@ export default function FacturacionBloquePage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['consolidados-facturacion'] });
-            alert('Bloque procesado: Comprobantes generados exitosamente.');
+            toast.success('Bloque procesado: Comprobantes generados exitosamente.');
+        },
+        onError: (error: any) => {
+            toast.error('Error al procesar: ' + error.message);
         }
     });
 

@@ -8,8 +8,13 @@ export default function Header() {
     const router = useRouter();
 
     const handleSignOut = async () => {
-        await supabase.auth.signOut();
-        router.push('/login');
+        try {
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Error signing out:', error);
+            window.location.href = '/login';
+        }
     };
 
     return (

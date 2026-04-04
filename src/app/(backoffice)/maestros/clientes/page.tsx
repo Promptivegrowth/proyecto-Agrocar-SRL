@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit2, Trash2, DollarSign, Lock, Unlock } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -43,9 +44,24 @@ export default function ClientesPage() {
 
     const mutationSave = useMutation({
         mutationFn: async (cliente: any) => {
-            const userRes = await supabase.auth.getUser();
-            const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userRes.data.user?.id).single();
-            const payload = { ...cliente, empresa_id: usuario?.empresa_id };
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                toast.error('Sesión expirada. Reingrese al sistema.');
+                window.location.href = '/login';
+                return;
+            }
+
+            const { data: usuario, error: userError } = await supabase
+                .from('usuarios')
+                .select('empresa_id')
+                .eq('id', user.id)
+                .single();
+
+            if (userError || !usuario) {
+                throw new Error('No se encontró la empresa del usuario.');
+            }
+
+            const payload = { ...cliente, empresa_id: usuario.empresa_id };
 
             if (currentClient) {
                 const { error } = await supabase.from('clientes').update(payload).eq('id', currentClient.id);
@@ -57,8 +73,12 @@ export default function ClientesPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['clientes'] });
+            toast.success(currentClient ? 'Cliente actualizado' : 'Cliente registrado');
             setIsDialogOpen(false);
             setCurrentClient(null);
+        },
+        onError: (error: any) => {
+            toast.error('Error: ' + error.message);
         }
     });
 
@@ -67,7 +87,10 @@ export default function ClientesPage() {
             const { error } = await supabase.from('clientes').update({ estado }).eq('id', id);
             if (error) throw error;
         },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clientes'] })
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['clientes'] });
+            toast.success('Estado actualizado');
+        }
     });
 
     const openEdit = (c: any) => {

@@ -11,8 +11,13 @@ export default function PwaLayout({
     const router = useRouter();
 
     const handleSignOut = async () => {
-        await supabase.auth.signOut();
-        router.push('/login');
+        try {
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Logout error:', error);
+            window.location.href = '/login';
+        }
     };
 
     return (

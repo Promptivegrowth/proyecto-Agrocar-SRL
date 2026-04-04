@@ -12,6 +12,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 function SortableItem({ id, pedido }: { id: string, pedido: any }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
@@ -130,14 +131,26 @@ export default function DespachoPage() {
             const vehiculosAConfirmar = vehiculos.filter(v => v.consolidado.length > 0);
             if (vehiculosAConfirmar.length === 0) throw new Error("No hay consolidados armados para despachar");
 
-            const userRes = await supabase.auth.getUser();
-            const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userRes.data.user?.id).single();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                toast.error('Sesión expirada. Reingrese.');
+                window.location.href = '/login';
+                return;
+            }
+
+            const { data: usuario, error: userError } = await supabase
+                .from('usuarios')
+                .select('empresa_id')
+                .eq('id', user.id)
+                .single();
+
+            if (userError || !usuario) throw new Error('Usuario no vinculado a empresa');
 
             for (const v of vehiculosAConfirmar) {
                 // 1. Create Consolidado
                 const numStr = 'C-' + Math.floor(Math.random() * 10000);
                 const { data: consol, error: errC } = await supabase.from('consolidados_despacho').insert([{
-                    empresa_id: usuario?.empresa_id,
+                    empresa_id: usuario.empresa_id,
                     numero: numStr,
                     fecha: new Date().toISOString().split('T')[0],
                     vehiculo_id: v.id,
@@ -160,7 +173,10 @@ export default function DespachoPage() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pedidos-pendientes'] });
-            alert("Consolidados de despacho confirmados exitosamente!");
+            toast.success("Consolidados de despacho confirmados exitosamente!");
+        },
+        onError: (error: any) => {
+            toast.error("Error al confirmar: " + error.message);
         }
     });
 
