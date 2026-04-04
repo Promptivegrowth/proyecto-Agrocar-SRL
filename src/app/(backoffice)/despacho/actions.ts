@@ -6,11 +6,13 @@ import { revalidatePath } from 'next/cache';
 export async function confirmarConsolidado({
     vehiculoId,
     choferId,
-    pedidosIds
+    pedidosIds,
+    itemsDirectos = []
 }: {
     vehiculoId: string;
     choferId: string;
     pedidosIds: string[];
+    itemsDirectos?: any[];
 }) {
     const supabase = await createClient();
 
@@ -52,58 +54,57 @@ export async function confirmarConsolidado({
         if (errorC) throw errorC;
 
         // 3. Vincular pedidos y descontar stock
-        for (const pedidoId of pedidosIds) {
-            // Actualizar pedido
-            await supabase
-                .from('pedidos')
-                .update({
-                    consolidado_id: consolidado.id,
-                    estado: 'en_despacho',
-                    vehiculo_id: vehiculoId
-                })
-                .eq('id', pedidoId);
+        const realPedidosIds = pedidosIds.filter(id => !id.startsWith('cargo-'));
+        const allItems: any[] = [...itemsDirectos];
 
-            // Obtener items del pedido para descontar stock
-            const { data: items } = await supabase
-                .from('pedido_items')
-                .select('*, productos(descripcion)')
-                .eq('pedido_id', pedidoId);
+        // Collect all items from real pedidos
+        if (realPedidosIds.length > 0) {
+            for (const pedidoId of realPedidosIds) {
+                await supabase
+                    .from('pedidos')
+                    .update({
+                        consolidado_id: consolidado.id,
+                        estado: 'en_despacho',
+                        vehiculo_id: vehiculoId
+                    })
+                    .eq('id', pedidoId);
 
-            if (items) {
-                for (const item of items) {
-                    // Obtener stock actual (simplificado: primer almacén que encuentre con stock o el principal)
-                    const { data: stock } = await supabase
-                        .from('stock')
-                        .select('id, cantidad')
-                        .eq('producto_id', item.producto_id)
-                        .limit(1)
-                        .single();
+                const { data: pItems } = await supabase
+                    .from('pedido_items')
+                    .select('*, productos(descripcion)')
+                    .eq('pedido_id', pedidoId);
 
-                    if (stock) {
-                        const nuevoSaldo = stock.cantidad - item.cantidad;
+                if (pItems) allItems.push(...pItems);
+            }
+        }
 
-                        await supabase
-                            .from('stock')
-                            .update({ cantidad: nuevoSaldo }) // Permitimos negativos si no hay validación estricta
-                            .eq('id', stock.id);
+        // Standard approach: Process stock for all collected items
+        for (const item of allItems) {
+            const { data: stock } = await supabase
+                .from('stock')
+                .select('id, cantidad')
+                .eq('producto_id', item.producto_id)
+                .limit(1)
+                .single();
 
-                        // Registrar movimiento
-                        await supabase.from('stock_movimientos').insert({
-                            empresa_id: usuario.empresa_id,
-                            producto_id: item.producto_id,
-                            almacen_id: '8976f9d4-8d4e-4f1b-9d4e-4f1b9d4e4f1b', // ID hardcoded para Almacén Principal (debe ser dinámico mejor)
-                            tipo: 'salida',
-                            motivo: 'despacho',
-                            cantidad: item.cantidad,
-                            referencia_id: consolidado.id,
-                            referencia_tipo: 'consolidado',
-                            saldo_anterior: stock.cantidad,
-                            saldo_posterior: nuevoSaldo,
-                            usuario_id: user.id,
-                            fecha: new Date().toISOString()
-                        });
-                    }
-                }
+            if (stock) {
+                const nuevoSaldo = stock.cantidad - item.cantidad;
+                await supabase.from('stock').update({ cantidad: nuevoSaldo }).eq('id', stock.id);
+
+                await supabase.from('stock_movimientos').insert({
+                    empresa_id: usuario.empresa_id,
+                    producto_id: item.producto_id,
+                    almacen_id: '8976f9d4-8d4e-4f1b-9d4e-4f1b9d4e4f1b',
+                    tipo: 'salida',
+                    motivo: 'despacho',
+                    cantidad: item.cantidad,
+                    referencia_id: consolidado.id,
+                    referencia_tipo: 'consolidado',
+                    saldo_anterior: stock.cantidad,
+                    saldo_posterior: nuevoSaldo,
+                    usuario_id: user.id,
+                    fecha: new Date().toISOString()
+                });
             }
         }
 

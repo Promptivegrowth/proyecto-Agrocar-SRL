@@ -47,7 +47,7 @@ export default function AppVendedorDashboard() {
             const { data } = await supabase
                 .from('visitas_gps')
                 .select('*, clientes(razon_social)')
-                .eq('vendedor_id', user.id)
+                .or(`vendedor_id.eq.${user.id},usuario_id.eq.${user.id}`)
                 .is('hora_checkout', null)
                 .maybeSingle();
             return data;
@@ -445,6 +445,24 @@ export default function AppVendedorDashboard() {
                         >
                             <Flag className="w-6 h-6" />
                             <span className="font-black text-xs">REGISTRAR SALIDA</span>
+                        </Button>
+                    </div>
+                    <div className="px-6 pb-6 pt-2">
+                        <Button
+                            variant="ghost"
+                            className="w-full text-[10px] font-black text-slate-400 hover:text-red-500 hover:bg-red-50 uppercase tracking-widest rounded-xl transition-all"
+                            onClick={async () => {
+                                if (confirm('¿Reiniciar estado de asistencia? Esto registrará una SALIDA forzada para desbloquear tu sesión.')) {
+                                    const res = await registrarAsistencia('salida');
+                                    if (res.error) toast.error(res.error);
+                                    else {
+                                        toast.success('Sesión reiniciada');
+                                        queryClient.invalidateQueries({ queryKey: ['asistencia-hoy'] });
+                                    }
+                                }
+                            }}
+                        >
+                            <Zap className="w-3 h-3 mr-2" /> ¿Problemas? Reiniciar Turno
                         </Button>
                     </div>
                 </DialogContent>

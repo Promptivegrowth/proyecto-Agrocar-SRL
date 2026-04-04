@@ -302,24 +302,35 @@ export default function DespachoPage() {
 
     const confirmMutation = useMutation({
         mutationFn: async (vehiculoId: string) => {
-            const vehiculo = vehiculos.find(v => v.id === vehiculoId);
-            if (!vehiculo || vehiculo.consolidado.length === 0) throw new Error("No hay pedidos para este vehículo");
+            const v = vehiculos.find(vh => vh.id === vehiculoId);
+            if (!v) return;
 
-            const result = await confirmarConsolidado({
-                vehiculoId: vehiculo.id,
-                choferId: vehiculo.chofer_id,
-                pedidosIds: vehiculo.consolidado.filter((p: any) => !p.id.startsWith('cargo-')).map((p: any) => p.id)
+            // Separate real orders from direct items
+            const realPedidosIds = v.consolidado
+                .filter((p: any) => !p.id.startsWith('cargo-'))
+                .map((p: any) => p.id);
+
+            const directItems = v.consolidado
+                .filter((p: any) => p.id.startsWith('cargo-'))
+                .flatMap((p: any) => p.pedido_items);
+
+            const res = await confirmarConsolidado({
+                vehiculoId,
+                choferId: v.chofer_id,
+                pedidosIds: realPedidosIds,
+                itemsDirectos: directItems
             });
-
-            if (!result.success) throw new Error(result.error);
-            return result;
+            if (!res.success) throw new Error(res.error);
+            return res;
         },
-        onSuccess: (data: any) => {
+        onSuccess: (res) => {
+            if (!res) return;
+            toast.success(`Consolidado ${res.numero} generado con éxito`);
             queryClient.invalidateQueries({ queryKey: ['pedidos-pendientes'] });
-            toast.success(`Consolidado ${data.numero} generado exitosamente!`);
-            setVehiculos(prev => prev.map(v => v.id === data.vehiculoId ? { ...v, consolidado: [] } : v));
+            queryClient.invalidateQueries({ queryKey: ['vehiculos-despacho'] });
+            setVehiculos(prev => prev.map(v => v.id === res.vehiculoId ? { ...v, consolidado: [] } : v));
         },
-        onError: (error: any) => { toast.error("Error: " + error.message); }
+        onError: (err: any) => toast.error(err.message || 'Error al confirmar despacho')
     });
 
     const totalPendientesPeso = calcularPesoTotal(pedidosPendientes);
@@ -394,60 +405,71 @@ export default function DespachoPage() {
 
                             return (
                                 <SortableContext key={vehiculo.id} id={vehiculo.id} items={vehiculo.consolidado.map((p: any) => p.id)} strategy={verticalListSortingStrategy}>
-                                    <Card className={`w-[360px] flex flex-col shrink-0 border-2 transition-colors ${vehiculo.consolidado.length > 0 ? 'border-primary/20 shadow-lg shadow-primary/5' : 'border-gray-200'}`}>
-                                        <CardHeader className="py-4 border-b bg-gray-50/50">
-                                            <div className="flex justify-between items-start mb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-lg ${vehiculo.consolidado.length > 0 ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'}`}>
-                                                        <Truck className="w-5 h-5" />
+                                    <Card key={vehiculo.id} className="flex flex-col h-full border-2 border-slate-200 shadow-xl rounded-3xl overflow-hidden transition-all hover:shadow-2xl hover:border-primary/40 bg-white group">
+                                        <CardHeader className="bg-slate-900 text-white p-6 pb-4 relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                                                <Truck className="w-20 h-20 rotate-12" />
+                                            </div>
+                                            <div className="flex justify-between items-start mb-4 relative z-10">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`p-3 rounded-2xl ${vehiculo.consolidado.length > 0 ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
+                                                        <Truck className="w-6 h-6" />
                                                     </div>
                                                     <div>
-                                                        <h3 className="font-black text-gray-900 text-lg leading-none">{vehiculo.placa}</h3>
-                                                        <p className="text-[11px] text-gray-500 mt-1 uppercase tracking-wider">{vehiculo.marca} {vehiculo.modelo}</p>
+                                                        <h3 className="font-black text-white text-xl leading-none tracking-tight">{vehiculo.placa}</h3>
+                                                        <p className="text-[10px] text-slate-400 mt-1.5 uppercase font-black tracking-[0.2em]">{vehiculo.marca} {vehiculo.modelo}</p>
                                                     </div>
                                                 </div>
-                                                <Badge variant="secondary" className="font-bold">
-                                                    {vehiculo.consolidado.length} Pedidos
+                                                <Badge variant="secondary" className="bg-white/10 text-white border-white/20 font-black text-[10px] px-2 py-0.5 uppercase">
+                                                    {vehiculo.consolidado.length} Cargas
                                                 </Badge>
                                             </div>
 
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between text-[11px] font-bold">
-                                                    <span className="text-gray-500 uppercase">Capacidad de Carga</span>
-                                                    <span className={`${porcentajeCarga > 100 ? 'text-destructive font-black animate-pulse' : porcentajeCarga > 80 ? 'text-amber-500' : 'text-primary'}`}>
+                                            <div className="space-y-2 relative z-10">
+                                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                                                    <span className="text-slate-400">Capacidad Utilizada</span>
+                                                    <span className={`${porcentajeCarga > 100 ? 'text-rose-400 font-black animate-pulse' : porcentajeCarga > 80 ? 'text-amber-400' : 'text-emerald-400'}`}>
                                                         {pesoVehiculo.toFixed(1)} / {vehiculo.capacidad_kg || 5000} KG
                                                     </span>
                                                 </div>
-                                                <Progress value={Math.min(porcentajeCarga, 100)} className={`h-2 ${porcentajeCarga > 100 ? 'bg-red-200' : ''}`} />
+                                                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+                                                    <div
+                                                        className={`h-full transition-all duration-1000 ease-out rounded-full ${porcentajeCarga > 100 ? 'bg-rose-500' : porcentajeCarga > 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                                        style={{ width: `${Math.min(porcentajeCarga, 100)}%` }}
+                                                    />
+                                                </div>
                                                 {porcentajeCarga > 100 && (
-                                                    <p className="text-[10px] text-destructive font-bold uppercase mt-1 flex items-center gap-1">
-                                                        <Zap className="w-3 h-3" /> Exceso de capacidad ({(porcentajeCarga - 100).toFixed(0)}%)
+                                                    <p className="text-[10px] text-rose-400 font-black uppercase mt-1 flex items-center gap-1.5">
+                                                        <Zap className="w-3 h-3 fill-rose-400" /> ¡SOBRECARGA DETECTADA! ({(porcentajeCarga - 100).toFixed(0)}%)
                                                     </p>
                                                 )}
                                             </div>
 
-                                            <div className="mt-3 flex items-center gap-2 text-xs text-gray-600 bg-white/50 p-2 rounded border border-dashed">
-                                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                                <span className="font-medium">Chofer:</span> {vehiculo.chofer_nombre}
+                                            <div className="mt-4 flex items-center gap-3 text-[10px] text-slate-300 bg-white/5 p-2 px-3 rounded-xl border border-white/10">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
+                                                <span className="font-black opacity-60 uppercase tracking-widest">Chofer:</span>
+                                                <span className="font-bold text-white uppercase">{vehiculo.chofer_nombre}</span>
                                             </div>
 
-                                            {/* Direct Cargo Button */}
                                             <Button
-                                                variant="outline"
-                                                className="w-full mt-3 h-8 text-[11px] font-bold border-primary/30 text-primary hover:bg-primary hover:text-white"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="w-full mt-4 h-9 text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl"
                                                 onClick={() => setDirectCargoVehicle(vehiculo)}
                                             >
-                                                <Plus className="w-3.5 h-3.5 mr-1" /> Agregar Carga Directa
+                                                <Plus className="w-3.5 h-3.5 mr-2" /> Agregar Carga Directa
                                             </Button>
                                         </CardHeader>
 
-                                        <DroppableContainer id={vehiculo.id} className="flex-1 p-4 bg-gray-50/20 overflow-y-auto">
-                                            <div className="space-y-4 min-h-[150px]">
+                                        <DroppableContainer id={vehiculo.id} className="flex-1 p-5 bg-slate-50/50 overflow-y-auto">
+                                            <div className="space-y-4 min-h-[200px]">
                                                 {vehiculo.consolidado.length === 0 ? (
-                                                    <div className="h-full border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 py-20 bg-white/40">
-                                                        <Truck className="w-10 h-10 mb-3 opacity-10" />
-                                                        <p className="text-sm font-bold uppercase tracking-widest opacity-30">Carga Vacía</p>
-                                                        <p className="text-[10px] mt-1">Arrastra pedidos o usa "Agregar Carga"</p>
+                                                    <div className="h-full border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center text-slate-300 py-20 bg-white shadow-inner">
+                                                        <div className="bg-slate-50 p-6 rounded-full mb-4">
+                                                            <Truck className="w-12 h-12 opacity-10" />
+                                                        </div>
+                                                        <p className="text-xs font-black uppercase tracking-[0.2em] opacity-30">Contenedor Vacío</p>
+                                                        <p className="text-[9px] mt-2 font-bold px-8 text-center leading-relaxed">Asigna pedidos del panel izquierdo de forma directa o arrastrándolos.</p>
                                                     </div>
                                                 ) : (
                                                     vehiculo.consolidado.map((pedido: any) => (
@@ -461,21 +483,30 @@ export default function DespachoPage() {
                                         </DroppableContainer>
 
                                         {vehiculo.consolidado.length > 0 && (
-                                            <div className="p-4 border-t bg-white space-y-2 shrink-0">
+                                            <div className="p-5 border-t bg-white gap-3 flex flex-col shrink-0">
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        className="flex-1 text-[10px] font-black uppercase tracking-widest h-12 border-2 rounded-2xl hover:bg-slate-50"
+                                                        onClick={() => { setSelectedVehiculo(vehiculo); setIsPickingListOpen(true); }}
+                                                    >
+                                                        <FileText className="w-4 h-4 mr-2 text-primary" />
+                                                        Picking List
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        className="h-12 w-12 border-2 rounded-2xl hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                                                        onClick={() => setVehiculos(prev => prev.map(v => v.id === vehiculo.id ? { ...v, consolidado: [] } : v))}
+                                                    >
+                                                        <Zap className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
                                                 <Button
-                                                    variant="outline"
-                                                    className="w-full text-xs font-bold h-9 border-2"
-                                                    onClick={() => { setSelectedVehiculo(vehiculo); setIsPickingListOpen(true); }}
-                                                >
-                                                    <FileText className="w-4 h-4 mr-2 text-primary" />
-                                                    Picking List / Detalle
-                                                </Button>
-                                                <Button
-                                                    className="w-full text-xs font-bold h-9 bg-primary hover:bg-primary/90"
+                                                    className="w-full text-[11px] font-black uppercase tracking-[0.2em] h-14 bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 rounded-2xl"
                                                     disabled={confirmMutation.isPending}
                                                     onClick={() => confirmMutation.mutate(vehiculo.id)}
                                                 >
-                                                    {confirmMutation.isPending ? 'Confirmando...' : 'Confirmar Salida'}
+                                                    {confirmMutation.isPending ? 'PROCESANDO...' : 'CONFIRMAR DESPACHO'}
                                                 </Button>
                                             </div>
                                         )}
