@@ -99,9 +99,31 @@ export async function registrarAsistencia(tipo: 'ingreso' | 'salida') {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return { error: 'No autenticado' };
 
+    // Check current state to prevent double ingreso/salida
+    const today = new Date().toISOString().split('T')[0];
+    const { data: ultimoRegistro } = await supabase
+        .from('tracking_gps')
+        .select('velocidad')
+        .eq('usuario_id', user.id)
+        .eq('fecha', today)
+        .in('velocidad', [-1, -2])
+        .order('hora', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    const estaIngresado = ultimoRegistro?.velocidad === -1;
+
+    // Prevent duplicate actions
+    if (tipo === 'ingreso' && estaIngresado) {
+        return { error: 'Ya tienes registrado el ingreso de hoy. Marca tu salida primero.' };
+    }
+    if (tipo === 'salida' && !estaIngresado) {
+        return { error: 'No tienes un ingreso activo. Registra tu ingreso primero.' };
+    }
+
     const { error: insertError } = await supabase.from('tracking_gps').insert([{
         usuario_id: user.id,
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: today,
         hora: new Date().toISOString(),
         latitud: 0,
         longitud: 0,
@@ -110,11 +132,11 @@ export async function registrarAsistencia(tipo: 'ingreso' | 'salida') {
 
     if (insertError) {
         console.error('registrarAsistencia error:', insertError);
-        return { error: insertError.message };
+        return { error: `Error al registrar ${tipo}: ${insertError.message}` };
     }
 
     revalidatePath('/app-vendedor');
-    return { success: true };
+    return { success: true, tipo };
 }
 
 export async function registrarProspecto(data: any) {

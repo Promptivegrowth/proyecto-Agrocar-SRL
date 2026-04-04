@@ -12,7 +12,9 @@ import {
     ArrowUpRight,
     MousePointer2,
     Zap,
-    MapPin
+    ZapOff,
+    MapPin,
+    Truck
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -241,20 +243,74 @@ export default function DashboardPage() {
                     </div>
                 </Card>
 
-                <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2.5rem] bg-indigo-600 p-8 text-white relative overflow-hidden flex flex-col justify-between">
-                    <div className="absolute bottom-0 right-0 opacity-10 translate-y-1/4 translate-x-1/4"><Package className="w-64 h-64" /></div>
-                    <div>
-                        <Badge className="bg-indigo-400 text-white border-none font-bold mb-4">LOGÍSTICA INBOUND</Badge>
-                        <h2 className="text-3xl font-black uppercase italic tracking-tighter leading-none mb-4">Registro de<br />Ingresos Almacén</h2>
-                        <p className="text-indigo-100 text-sm font-medium leading-relaxed max-w-[200px]">Ingresa mercadería nueva y actualiza estacionalidad de productos.</p>
+                <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2.5rem] bg-white p-8 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full translate-x-8 -translate-y-8 opacity-80" />
+                    <div className="flex items-center justify-between mb-6 relative z-10">
+                        <h2 className="text-lg font-black text-slate-800 uppercase italic tracking-tight flex items-center gap-2">
+                            <Truck className="w-5 h-5 text-amber-500" /> Flota: Alertas Urgentes
+                        </h2>
+                        <Link href="/despacho/flota">
+                            <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase text-amber-600 hover:bg-amber-50">Ver Flota</Button>
+                        </Link>
                     </div>
-                    <Link href="/almacen">
-                        <Button className="w-full bg-white text-indigo-600 hover:bg-indigo-50 font-black uppercase tracking-widest text-xs h-14 rounded-2xl shadow-xl shadow-indigo-900/20 mt-8 group">
-                            Registrar Ingreso <ArrowUpRight className="ml-2 w-4 h-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                        </Button>
-                    </Link>
+                    <FleetAlertsWidget />
                 </Card>
             </div>
+        </div>
+    );
+}
+
+function FleetAlertsWidget() {
+    const { data: alertas = [] } = useQuery({
+        queryKey: ['fleet-alertas-dashboard'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('fleet_alertas')
+                .select('*, vehiculos(placa)')
+                .not('estado', 'eq', 'resuelto')
+                .order('fecha_vencimiento', { ascending: true })
+                .limit(6);
+            return data || [];
+        },
+        refetchInterval: 30000
+    });
+
+    if (alertas.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center py-8 bg-emerald-50 rounded-3xl border-2 border-emerald-100">
+                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mb-3">
+                    <ZapOff className="w-5 h-5 text-emerald-600" />
+                </div>
+                <p className="font-black text-emerald-700 text-xs uppercase tracking-widest">Flota sin alertas</p>
+                <p className="text-[10px] text-emerald-500 font-medium mt-1">Toda la documentación al día</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            {alertas.map((alerta: any) => {
+                const days = alerta.fecha_vencimiento
+                    ? Math.ceil((new Date(alerta.fecha_vencimiento).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                    : null;
+                const isVencido = alerta.estado === 'vencido' || (days !== null && days < 0);
+                const isUrgente = days !== null && days <= 7 && days >= 0;
+                const color = isVencido ? 'bg-red-50 border-red-200 text-red-700' : isUrgente ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-100 text-slate-700';
+                return (
+                    <div key={alerta.id} className={`flex items-center gap-3 p-3 rounded-2xl border ${color}`}>
+                        <div className={`w-2 h-8 rounded-full shrink-0 ${isVencido ? 'bg-red-500' : isUrgente ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`} />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black leading-tight truncate">{alerta.titulo}</p>
+                            <p className="text-[9px] font-bold opacity-60 uppercase tracking-wider mt-0.5">{alerta.vehiculos?.placa}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${isVencido ? 'bg-red-100 text-red-700' : isUrgente ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'}`}>
+                                {isVencido ? 'VENCIDO' : days !== null ? `${days}d` : '—'}
+                            </span>
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }

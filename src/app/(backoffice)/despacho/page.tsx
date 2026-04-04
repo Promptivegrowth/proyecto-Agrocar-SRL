@@ -33,10 +33,12 @@ function SortableItem({ id, pedido, onDetail, vehiculos, onManualAssign }: { id:
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
-    const pesoTotal = pedido.pedido_items?.reduce((acc: number, it: any) => {
+    const pesoTotal = pedido._peso_total || (pedido.pedido_items?.reduce((acc: number, it: any) => {
+        const pesoUnit = it.peso_kg || it.productos?.peso_kg || 0;
+        if (pesoUnit > 0) return acc + (Number(it.cantidad) || 0) * pesoUnit;
         if (it.unidad_medida === 'KG') return acc + (Number(it.cantidad) || 0);
-        return acc;
-    }, 0) || 0;
+        return acc + (Number(it.cantidad) || 0); // fallback: count units as kg
+    }, 0) || 0);
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}
@@ -119,86 +121,117 @@ function DirectCargoModal({ vehiculo, productos, onClose, vehiculos, setVehiculo
     vehiculo: any, productos: any[], onClose: () => void,
     vehiculos: any[], setVehiculos: any
 }) {
-    const [selectedProductId, setSelectedProductId] = useState<string | null>('');
+    const [selectedProductId, setSelectedProductId] = useState('');
     const [cantidad, setCantidad] = useState('');
 
+    const selectedProd = productos.find(p => p.id === selectedProductId);
+
     const addDirectItem = () => {
-        if (!selectedProductId || !cantidad || Number(cantidad) <= 0) {
-            toast.error('Selecciona producto y cantidad válida');
+        if (!selectedProductId || !selectedProd || !cantidad || Number(cantidad) <= 0) {
+            toast.error('Selecciona un producto y cantidad válida');
             return;
         }
-        const prod = productos.find(p => p.id === selectedProductId);
-        if (!prod) return;
 
         const fakeItem = {
             id: `direct-${Date.now()}`,
-            producto_id: prod.id,
-            productos: { descripcion: prod.descripcion },
+            producto_id: selectedProd.id,
+            productos: { descripcion: selectedProd.descripcion },
             cantidad: Number(cantidad),
-            unidad_medida: prod.unidad_medida || 'UND',
+            unidad_medida: selectedProd.unidad_medida || 'UND',
             precio_unitario: 0,
+            peso_kg: selectedProd.peso_kg || 5, // so weight bar updates
             tipo_carga: 'directo'
         };
 
         // Create a pseudo-pedido for this product
         const pseudoPedido = {
-            id: `cargo-${Date.now()}-${prod.id}`,
+            id: `cargo-${Date.now()}-${selectedProd.id}`,
             numero: `CARGA`,
             estado: 'normal',
-            clientes: { razon_social: `[Carga Directa] ${prod.descripcion}`, distrito: '', direccion: '' },
+            clientes: { razon_social: `[Carga Directa] ${selectedProd.descripcion}`, distrito: '', direccion: '' },
             total: 0,
-            pedido_items: [fakeItem]
+            pedido_items: [fakeItem],
+            _peso_total: (selectedProd.peso_kg || 5) * Number(cantidad)
         };
 
         setVehiculos((prev: any[]) => prev.map((v: any) =>
             v.id === vehiculo.id ? { ...v, consolidado: [...v.consolidado, pseudoPedido] } : v
         ));
-        toast.success(`${prod.descripcion} agregado a ${vehiculo.placa}`);
+        toast.success(`${selectedProd.descripcion} (${cantidad} ${selectedProd.unidad_medida || 'UND'}) → ${vehiculo.placa}`);
         setCantidad('');
         setSelectedProductId('');
     };
 
     return (
         <Dialog open onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[480px] border-t-8 border-primary">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-xl font-black">
-                        <Plus className="w-5 h-5 text-primary" /> Agregar Carga Directa
-                    </DialogTitle>
-                    <DialogDescription>Vehículo: <strong>{vehiculo.placa}</strong> · {vehiculo.chofer_nombre}</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-2">
-                    <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase text-gray-500">Producto</Label>
-                        <Select value={selectedProductId || ''} onValueChange={(v) => v && setSelectedProductId(v)}>
-                            <SelectTrigger className="h-11">
-                                <SelectValue placeholder="Seleccionar producto..." />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-60">
-                                {productos.map(p => (
-                                    <SelectItem key={p.id} value={p.id} className="text-sm">
-                                        {p.descripcion} ({p.unidad_medida})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+            <DialogContent className="sm:max-w-[500px] border-0 rounded-3xl overflow-hidden p-0">
+                <div className="bg-slate-900 p-6 text-white">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="bg-primary p-2.5 rounded-xl">
+                            <Plus className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-black uppercase tracking-tight">Carga Directa</h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{vehiculo.placa} · {vehiculo.chofer_nombre}</p>
+                        </div>
                     </div>
-                    <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase text-gray-500">Cantidad</Label>
-                        <Input
-                            type="number" min="0.1" step="0.5" placeholder="0"
-                            className="h-11" value={cantidad}
+                </div>
+                <div className="p-6 space-y-4 bg-white">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block">Producto</label>
+                        <select
+                            value={selectedProductId}
+                            onChange={e => setSelectedProductId(e.target.value)}
+                            className="w-full h-12 px-4 rounded-2xl border-2 border-slate-200 bg-slate-50 font-medium text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                        >
+                            <option value="">Seleccionar producto...</option>
+                            {productos.map(p => (
+                                <option key={p.id} value={p.id}>
+                                    {p.descripcion} ({p.unidad_medida || 'UND'}) — {p.peso_kg || 5} KG/unit
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    {selectedProd && (
+                        <div className="bg-primary/5 border border-primary/20 p-3 rounded-xl text-sm">
+                            <p className="font-black text-primary text-[10px] uppercase tracking-widest mb-1">Producto seleccionado</p>
+                            <p className="font-bold text-slate-800">{selectedProd.descripcion}</p>
+                            <p className="text-slate-500 text-xs mt-0.5">Peso: {selectedProd.peso_kg || 5} KG/unidad · Stock: {selectedProd.stock || 'N/A'}</p>
+                        </div>
+                    )}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest block">Cantidad</label>
+                        <input
+                            type="number"
+                            min="0.5"
+                            step="1"
+                            placeholder="0"
+                            className="w-full h-12 px-4 rounded-2xl border-2 border-slate-200 bg-slate-50 font-medium text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                            value={cantidad}
                             onChange={e => setCantidad(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') addDirectItem(); }}
                         />
+                        {selectedProd && cantidad && Number(cantidad) > 0 && (
+                            <p className="text-[10px] text-slate-500 font-bold text-right">
+                                Peso total: {((selectedProd.peso_kg || 5) * Number(cantidad)).toFixed(1)} KG
+                            </p>
+                        )}
                     </div>
-                    <Button className="w-full h-11 font-black text-sm" onClick={addDirectItem}>
-                        <Plus className="w-4 h-4 mr-2" /> Agregar al Vehículo
-                    </Button>
+                    <div className="flex gap-3 mt-2">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 h-11 rounded-2xl border-2 border-slate-200 font-black text-sm uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all"
+                        >Cancelar</button>
+                        <button
+                            onClick={addDirectItem}
+                            className="flex-1 h-11 rounded-2xl bg-primary text-white font-black text-sm uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                        >
+                            <span className="flex items-center justify-center gap-2">
+                                <Plus className="w-4 h-4" /> Agregar
+                            </span>
+                        </button>
+                    </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" className="border-2 font-bold" onClick={onClose}>Cerrar</Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
@@ -235,7 +268,7 @@ export default function DespachoPage() {
         queryKey: ['pedidos-pendientes'],
         queryFn: async () => {
             const { data } = await supabase.from('pedidos')
-                .select('*, clientes(razon_social, distrito, direccion), pedido_items(*, productos(descripcion, unidad_medida))')
+                .select('*, clientes(razon_social, distrito, direccion), pedido_items(*, productos(descripcion, unidad_medida, peso_kg))')
                 .in('estado', ['pendiente', 'confirmado', 'aprobado']);
             setPedidosPendientes(data || []);
             return data;

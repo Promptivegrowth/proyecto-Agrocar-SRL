@@ -24,6 +24,7 @@ export default function Sidebar() {
                     <li className="pt-4 pb-1 px-4 text-xs font-semibold text-primary-foreground/50 uppercase">Operativa</li>
                     <li><Link href="/almacen" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><HardDrive className="mr-3 h-5 w-5" /> Almacén</Link></li>
                     <li><Link href="/despacho" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><Truck className="mr-3 h-5 w-5" /> Despacho</Link></li>
+                    <li><Link href="/despacho/flota" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors text-secondary/80 hover:text-secondary"><MapPin className="mr-3 h-5 w-5 text-secondary/60" /> Gestión de Flota</Link></li>
                     <li><Link href="/facturacion/bloque" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><ListOrdered className="mr-3 h-5 w-5" /> Facturación</Link></li>
                     <li><Link href="/cobranzas/cuentas-corrientes" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><DollarSign className="mr-3 h-5 w-5" /> Cobranzas</Link></li>
 
