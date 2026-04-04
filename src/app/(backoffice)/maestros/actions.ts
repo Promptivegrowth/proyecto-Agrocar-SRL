@@ -18,11 +18,14 @@ export async function guardarProducto(data: any, productId?: string) {
 
         if (!usuario) throw new Error('Usuario no vinculado a empresa')
 
-        const payload = {
+        const payload: any = {
             ...data,
             empresa_id: usuario.empresa_id,
-            activo: true,
-            created_at: new Date().toISOString()
+        }
+
+        if (!productId) {
+            payload.activo = true;
+            payload.created_at = new Date().toISOString();
         }
 
         let result;
@@ -80,7 +83,9 @@ export async function guardarCliente(data: any, clienteId?: string) {
         }
 
         if (result.error) throw result.error
+
         revalidatePath('/maestros/clientes')
+        revalidatePath('/(backoffice)/maestros/clientes')
         return { success: true }
     } catch (error: any) {
         return { error: error.message }

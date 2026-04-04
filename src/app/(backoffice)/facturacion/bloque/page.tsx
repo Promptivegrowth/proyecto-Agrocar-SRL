@@ -43,43 +43,64 @@ export default function FacturacionBloquePage() {
     const { data: consolidados, isLoading } = useQuery({
         queryKey: ['consolidados-facturacion'],
         queryFn: async () => {
-            // Fetch Consolidados
+            // 1. Fetch Consolidados
             const { data: consData, error: consError } = await supabase
                 .from('consolidados_despacho')
-                .select(`*, vehiculos(placa, chofer_id)`)
+                .select('*')
                 .neq('estado', 'cerrado')
                 .order('created_at', { ascending: false });
 
             if (consError) throw consError;
-
             if (!consData || consData.length === 0) return [];
 
             const consIds = consData.map(c => c.id);
+            const vehIds = consData.map(c => c.vehiculo_id).filter(Boolean);
 
-            // Fetch Pedidos vinculados a estos consolidados (join manual)
+            // 2. Fetch Vehículos (Join Manual)
+            const { data: vehData } = await supabase
+                .from('vehiculos')
+                .select('id, placa')
+                .in('id', vehIds);
+
+            // 3. Fetch Pedidos (Join Manual)
             const { data: pedData, error: pedError } = await supabase
                 .from('pedidos')
-                .select('id, total, estado, consolidado_id, clientes(tipo_documento)')
+                .select('id, total, estado, consolidado_id, cliente_id')
                 .in('consolidado_id', consIds);
 
             if (pedError) throw pedError;
 
+            // 4. Fetch Clientes (para saber si es Boleta o Factura)
+            const clienteIds = pedData?.map(p => p.cliente_id).filter(Boolean) || [];
+            const { data: cliData } = await supabase
+                .from('clientes')
+                .select('id, tipo_documento')
+                .in('id', clienteIds);
+
             return consData.map(c => {
+                const placa = vehData?.find(v => v.id === c.vehiculo_id)?.placa || 'Sin Placa';
                 const pedidosDelConsolidado = pedData?.filter((p: any) => p.consolidado_id === c.id) || [];
                 const pedidosParaFacturar = pedidosDelConsolidado.filter((p: any) => p.estado !== 'facturado');
 
                 const totalMonto = pedidosParaFacturar.reduce((acc: number, p: any) => acc + (p.total || 0), 0);
-                const boletasCount = pedidosParaFacturar.filter((p: any) => p.clientes?.tipo_documento === 'DNI').length;
-                const facturasCount = pedidosParaFacturar.filter((p: any) => p.clientes?.tipo_documento === 'RUC').length;
+
+                // Mapear clientes a pedidos
+                const pedidosConCliente = pedidosParaFacturar.map(p => ({
+                    ...p,
+                    cliente: cliData?.find(cli => cli.id === p.cliente_id)
+                }));
+
+                const boletasCount = pedidosConCliente.filter((p: any) => p.cliente?.tipo_documento === 'DNI').length;
+                const facturasCount = pedidosConCliente.filter((p: any) => p.cliente?.tipo_documento === 'RUC').length;
 
                 return {
                     ...c,
-                    pedidos_count: c.total_pedidos,
+                    pedidos_count: c.total_pedidos || pedidosDelConsolidado.length,
                     pedidos_pendientes: pedidosParaFacturar.length,
                     monto_total: totalMonto,
                     boletas_count: boletasCount,
                     facturas_count: facturasCount,
-                    vehiculo_placa: c.vehiculos?.placa || 'Sin Vehículo'
+                    vehiculo_placa: placa
                 };
             });
         }

@@ -236,8 +236,12 @@ export default function SupervisionMapaPage() {
                                             }}
                                         />
                                     )}
-                                    {selectedVendId === u.id && (
-                                        <InfoWindow position={u.pos} onCloseClick={() => setSelectedVendId(null)}>
+                                    {selectedVendId === u.id && u.pos && (
+                                        <InfoWindow
+                                            position={u.pos}
+                                            onCloseClick={() => setSelectedVendId(null)}
+                                            options={{ pixelOffset: new google.maps.Size(0, -20) }}
+                                        >
                                             <div className="p-3 max-w-xs bg-white rounded-xl">
                                                 <div className="flex items-center gap-3 mb-2 border-b pb-2">
                                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${u.tipo === 'vehiculo' ? 'bg-amber-500' : 'bg-blue-600'}`}>
@@ -249,12 +253,18 @@ export default function SupervisionMapaPage() {
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1.5">
-                                                    <p className="text-[10px] flex justify-between font-medium"><span>Carga:</span> <span className="font-black text-blue-600">82%</span></p>
-                                                    <p className="text-[10px] flex justify-between font-medium"><span>Estado:</span> <span className={`text-green-600 font-black uppercase`}>En Ruta</span></p>
-                                                    <p className="text-[10px] flex justify-between font-medium"><span>Last Ping:</span> <span className="font-mono">{u.lastPing}</span></p>
+                                                    <p className="text-[10px] flex justify-between font-medium"><span>Estado:</span> <span className={`text-green-600 font-black uppercase`}>Activo</span></p>
+                                                    <p className="text-[10px] flex justify-between font-medium"><span>Tipo:</span> <span className="font-black uppercase">{u.tipo}</span></p>
+                                                    <p className="text-[10px] flex justify-between font-medium"><span>Sincronizado:</span> <span className="font-mono">{u.lastPing}</span></p>
                                                 </div>
-                                                <Button size="sm" className="w-full mt-3 h-8 bg-slate-900 text-[9px] font-black uppercase tracking-widest rounded-lg">
-                                                    Ver Ruta Completa
+                                                <Button
+                                                    size="sm"
+                                                    className="w-full mt-3 h-8 bg-slate-900 text-[9px] font-black uppercase tracking-widest rounded-lg"
+                                                    onClick={() => {
+                                                        if (u.pos) map?.panTo(u.pos);
+                                                    }}
+                                                >
+                                                    Centrar Unidad
                                                 </Button>
                                             </div>
                                         </InfoWindow>

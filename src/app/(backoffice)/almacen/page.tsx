@@ -91,7 +91,7 @@ export default function AlmacenPage() {
                                 <ArrowRightLeft className="w-4 h-4 mr-2 text-gray-600" /> Transferencia
                             </Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="max-w-xl">
                             <DialogHeader>
                                 <DialogTitle>Registrar Transferencia</DialogTitle>
                             </DialogHeader>
@@ -99,15 +99,22 @@ export default function AlmacenPage() {
                                 <div className="space-y-2">
                                     <Label>Producto</Label>
                                     <Select onValueChange={(v: any) => setTransferData({ ...transferData, producto_id: v })}>
-                                        <SelectTrigger>
+                                        <SelectTrigger className="w-full">
                                             <SelectValue placeholder="Seleccione producto" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {stockData?.map((it: any, idx: number) => (
-                                                <SelectItem key={idx} value={it.productos?.id || it.productos?.[0]?.id}>
-                                                    {it.productos?.codigo || it.productos?.[0]?.codigo} - {it.productos?.descripcion || it.productos?.[0]?.descripcion}
-                                                </SelectItem>
-                                            ))}
+                                            {stockData?.map((it: any, idx: number) => {
+                                                const p = Array.isArray(it.productos) ? it.productos[0] : it.productos;
+                                                const a = Array.isArray(it.almacenes) ? it.almacenes[0] : it.almacenes;
+                                                return (
+                                                    <SelectItem key={idx} value={p?.id}>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold">{p?.codigo} - {p?.descripcion}</span>
+                                                            <span className="text-[10px] text-muted-foreground uppercase">Stock: {it.cantidad} en {a?.nombre}</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                );
+                                            })}
                                         </SelectContent>
                                     </Select>
                                 </div>

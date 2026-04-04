@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -17,8 +17,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from "@/components/ui/progress";
 import { confirmarConsolidado } from './actions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-function SortableItem({ id, pedido, onDetail }: { id: string, pedido: any, onDetail: (p: any) => void }) {
+function DroppableContainer({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
+    const { setNodeRef, isOver } = useDroppable({ id });
+    return (
+        <div ref={setNodeRef} className={`${className} ${isOver ? 'ring-2 ring-primary ring-inset bg-primary/5' : ''}`}>
+            {children}
+        </div>
+    );
+}
+
+function SortableItem({ id, pedido, onDetail, vehiculos, onManualAssign }: { id: string, pedido: any, onDetail: (p: any) => void, vehiculos?: any[], onManualAssign?: (pId: string, vId: string) => void }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
@@ -70,15 +80,40 @@ function SortableItem({ id, pedido, onDetail }: { id: string, pedido: any, onDet
                     <span className="flex items-center gap-1 text-[11px] font-bold text-gray-700">
                         <Scale className="w-3 h-3 text-amber-500" /> {pesoTotal.toFixed(1)} KG
                     </span>
-                    <span className="text-[11px] font-bold text-blue-700">S/ {pedido.total}</span>
                 </div>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-400 hover:text-primary rounded-full" onClick={(e) => { e.stopPropagation(); onDetail(pedido); }}>
-                    <ChevronRight className="w-4 h-4" />
-                </Button>
+                <div className="flex gap-1" onPointerDown={e => e.stopPropagation()}>
+                    {vehiculos && onManualAssign && (
+                        <Select onValueChange={(vId: string | null) => vId && onManualAssign && onManualAssign(pedido.id as string, vId)}>
+                            <SelectTrigger className="h-6 w-24 text-[9px] font-bold bg-white">
+                                <SelectValue placeholder="Asignar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {vehiculos.map(v => (
+                                    <SelectItem key={v.id} value={v.id} className="text-[10px] font-bold">
+                                        {v.placa} ({v.chofer_nombre})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-400 hover:text-primary rounded-full" onClick={(e) => { e.stopPropagation(); onDetail(pedido); }}>
+                        <ChevronRight className="w-4 h-4" />
+                    </Button>
+                </div>
             </div>
         </div>
     );
 }
+
+// Update handleManualAssign function in DespachoPage
+const handleManualAssign = (pedidoId: string, vehiculoId: string, pedidosPendientes: any[], vehiculos: any[], setPedidosPendientes: any, setVehiculos: any) => {
+    const movedPedido = pedidosPendientes.find(p => p.id === pedidoId);
+    if (!movedPedido) return;
+
+    setPedidosPendientes((prev: any[]) => prev.filter(p => p.id !== pedidoId));
+    setVehiculos((prev: any[]) => prev.map((v: any) => v.id === vehiculoId ? { ...v, consolidado: [...v.consolidado, movedPedido] } : v));
+    toast.success("Pedido asignado correctamente");
+};
 
 export default function DespachoPage() {
     const queryClient = useQueryClient();
@@ -254,10 +289,13 @@ export default function DespachoPage() {
                             <CardContent className="flex-1 p-4 overflow-y-auto">
                                 <div className="space-y-4 min-h-[200px]">
                                     {pedidosPendientes.map(pedido => (
-                                        <SortableItem key={pedido.id} id={pedido.id} pedido={pedido} onDetail={(p) => {
-                                            setSelectedPedido(p);
-                                            setIsPedidoModalOpen(true);
-                                        }} />
+                                        <SortableItem key={pedido.id} id={pedido.id} pedido={pedido}
+                                            vehiculos={vehiculos}
+                                            onManualAssign={(pId, vId) => handleManualAssign(pId, vId, pedidosPendientes, vehiculos, setPedidosPendientes, setVehiculos)}
+                                            onDetail={(p) => {
+                                                setSelectedPedido(p);
+                                                setIsPedidoModalOpen(true);
+                                            }} />
                                     ))}
                                     {pedidosPendientes.length === 0 && !isLoadingPedidos && (
                                         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -317,7 +355,7 @@ export default function DespachoPage() {
                                             </div>
                                         </CardHeader>
 
-                                        <CardContent className="flex-1 p-4 bg-gray-50/20 overflow-y-auto">
+                                        <DroppableContainer id={vehiculo.id} className="flex-1 p-4 bg-gray-50/20 overflow-y-auto">
                                             <div className="space-y-4 min-h-[150px]">
                                                 {vehiculo.consolidado.length === 0 ? (
                                                     <div className="h-full border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 py-20 bg-white/40">
@@ -334,7 +372,7 @@ export default function DespachoPage() {
                                                     ))
                                                 )}
                                             </div>
-                                        </CardContent>
+                                        </DroppableContainer>
 
                                         {vehiculo.consolidado.length > 0 && (
                                             <div className="p-4 border-t bg-white space-y-2 shrink-0">

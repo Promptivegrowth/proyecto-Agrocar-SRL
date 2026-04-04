@@ -121,7 +121,7 @@ export async function registrarProspecto(data: any) {
             empresa_id: usuario.empresa_id,
             vendedor_asignado_id: user.id,
             estado: 'activo',
-            tipo_cliente: 'otro',
+            tipo_cliente: 'prospecto',
             lista_precio: 'B'
         }]);
 

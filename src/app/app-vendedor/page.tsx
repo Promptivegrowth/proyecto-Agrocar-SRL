@@ -195,36 +195,53 @@ export default function AppVendedorDashboard() {
                 </div>
             )}
 
-            {/* Header Stats */}
-            <div className="p-4 grid grid-cols-2 gap-4">
-                <Card className="shadow-sm border-none bg-white rounded-[2rem] overflow-hidden">
-                    <CardContent className="p-5 flex flex-col items-center justify-center text-center">
-                        <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center mb-2">
-                            <PackageOpen className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <span className="text-xl font-black text-slate-800 tracking-tight">0</span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Pedidos Hoy</span>
-                    </CardContent>
-                </Card>
-                <Card className="shadow-sm border-none bg-white rounded-[2rem] overflow-hidden">
-                    <CardContent className="p-5 flex flex-col items-center justify-center text-center">
-                        <div className="w-10 h-10 bg-green-50 rounded-2xl flex items-center justify-center mb-2">
-                            <DollarSign className="w-5 h-5 text-green-600" />
-                        </div>
-                        <span className="text-xl font-black text-green-700 tracking-tight">S/ 0</span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Venta Total</span>
-                    </CardContent>
-                </Card>
+            {/* Premium Header */}
+            <div className="bg-slate-900 pt-12 pb-24 px-6 rounded-b-[3rem] relative shadow-2xl">
+                <div className="flex justify-between items-start mb-8">
+                    <div>
+                        <h2 className="text-white text-2xl font-black italic uppercase tracking-tighter">Agrocar <span className="text-blue-500">Field</span></h2>
+                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Terminal de Ventas V.3.1</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="ghost" size="icon" className="bg-white/10 text-white rounded-2xl h-12 w-12 border border-white/10">
+                            <Search className="w-5 h-5" />
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 relative z-10">
+                    <Card className="shadow-2xl border-none bg-white/10 backdrop-blur-xl rounded-3xl overflow-hidden border border-white/5">
+                        <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+                            <div className="w-12 h-12 bg-blue-500 text-white rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-blue-500/40">
+                                <PackageOpen className="w-6 h-6" />
+                            </div>
+                            <span className="text-2xl font-black text-white tracking-tight">0</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Pedidos Hoy</span>
+                        </CardContent>
+                    </Card>
+                    <Card className="shadow-2xl border-none bg-white/10 backdrop-blur-xl rounded-3xl overflow-hidden border border-white/5">
+                        <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+                            <div className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-emerald-500/40">
+                                <DollarSign className="w-6 h-6" />
+                            </div>
+                            <span className="text-2xl font-black text-white tracking-tight">S/ 0</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Meta Alcanzada</span>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
 
-            {/* Asistencia Fast Actions */}
-            <div className="px-5 pb-4">
+            {/* Float Actions */}
+            <div className="px-6 -mt-12 relative z-20 space-y-4">
                 <Button
-                    variant="outline"
+                    variant="default"
                     onClick={() => setIsAsistenciaOpen(true)}
-                    className="w-full h-12 rounded-2xl border-dashed border-slate-300 text-slate-500 text-[10px] font-black uppercase tracking-widest bg-white"
+                    className="w-full h-16 rounded-3xl bg-white text-slate-900 shadow-xl border-none flex items-center justify-center gap-4 group active:scale-95 transition-all text-xs font-black uppercase tracking-widest"
                 >
-                    <Timer className="w-4 h-4 mr-2 text-blue-500" /> Marcar Asistencia (Ingreso/Salida)
+                    <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                        <Timer className="w-5 h-5 text-blue-600" />
+                    </div>
+                    Asistencia (Ingreso/Salida)
                 </Button>
             </div>
 
@@ -271,15 +288,18 @@ export default function AppVendedorDashboard() {
                                 </div>
                             </div>
 
-                            <div className="mt-4 pt-4 border-t border-slate-50 flex gap-2">
+                            <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2">
                                 {!c.visitado && !visitaActiva && (
-                                    <Button
-                                        onClick={() => mutationCheckin.mutate(c)}
-                                        disabled={mutationCheckin.isPending}
-                                        className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border-none shadow-none font-black text-xs uppercase h-10 rounded-xl"
-                                    >
-                                        <MapPin className="w-4 h-4 mr-2" /> Iniciar Visita
-                                    </Button>
+                                    <>
+                                        <p className="text-[9px] text-slate-400 font-bold uppercase text-center mb-1">Activa rastreo GPS para este cliente</p>
+                                        <Button
+                                            onClick={() => mutationCheckin.mutate(c)}
+                                            disabled={mutationCheckin.isPending}
+                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white border-none shadow-lg shadow-blue-500/10 font-bold text-xs uppercase h-12 rounded-2xl"
+                                        >
+                                            <MapPin className="w-4 h-4 mr-2" /> Iniciar Visita
+                                        </Button>
+                                    </>
                                 )}
                                 {visitaActiva?.cliente_id === c.id && (
                                     <Link href={`/app-vendedor/pedido/${c.id}`} className="flex-1">

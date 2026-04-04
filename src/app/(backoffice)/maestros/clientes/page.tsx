@@ -12,19 +12,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import Link from 'next/link';
 import { guardarCliente, toggleEstadoCliente } from '../actions';
 
 export default function ClientesPage() {
     const queryClient = useQueryClient();
     const [busqueda, setBusqueda] = useState('');
+    const [filtro, setFiltro] = useState('todos');
 
     // Form State
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [currentClient, setCurrentClient] = useState<any>(null);
 
     const { data: clientes, isLoading } = useQuery({
-        queryKey: ['clientes', busqueda],
+        queryKey: ['clientes', busqueda, filtro],
         queryFn: async () => {
             let q = supabase
                 .from('clientes')
@@ -34,9 +36,17 @@ export default function ClientesPage() {
           zonas(nombre),
           usuarios!vendedor_asignado_id(nombres)
         `);
+
             if (busqueda) {
                 q = q.or(`razon_social.ilike.%${busqueda}%,numero_documento.ilike.%${busqueda}%`);
             }
+
+            if (filtro === 'prospecto') {
+                q = q.eq('tipo_cliente', 'prospecto');
+            } else if (filtro !== 'todos') {
+                q = q.eq('estado', filtro);
+            }
+
             const { data, error } = await q.order('razon_social');
             if (error) throw error;
             return data;
@@ -150,17 +160,29 @@ export default function ClientesPage() {
                 </Dialog>
             </div>
 
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                        placeholder="Buscar por DNI/RUC o Razón Social..."
-                        className="pl-9"
-                        value={busqueda}
-                        onChange={(e) => setBusqueda(e.target.value)}
-                    />
+            <Tabs defaultValue="todos" className="w-full" onValueChange={(v) => {
+                // We'll use the filter logic by status or type
+                setFiltro(v);
+            }}>
+                <TabsList className="bg-gray-100 p-1 mb-4">
+                    <TabsTrigger value="todos" className="data-[state=active]:bg-white px-8">Todos</TabsTrigger>
+                    <TabsTrigger value="activos" className="data-[state=active]:bg-white px-8">Activos</TabsTrigger>
+                    <TabsTrigger value="prospecto" className="data-[state=active]:bg-white px-8 font-bold text-orange-600 uppercase">Prosp. de Campo</TabsTrigger>
+                    <TabsTrigger value="bloqueado" className="data-[state=active]:bg-white px-8">Bloqueados</TabsTrigger>
+                </TabsList>
+
+                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center mb-4">
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                            placeholder="Buscar por DNI/RUC o Razón Social..."
+                            className="pl-9"
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
+                        />
+                    </div>
                 </div>
-            </div>
+            </Tabs>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <Table>
