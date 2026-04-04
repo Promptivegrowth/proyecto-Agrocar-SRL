@@ -33,8 +33,8 @@ export async function registrarIngreso(data: {
             usuario_id: user.id,
             proveedor_nombre: data.proveedor || 'Proveedor Genérico',
             tipo_doc: data.tipoDoc,
-            serie_doc: data.serieDoc,
-            numero_doc: data.correlativo,
+            serie_doc: (data.serieDoc || '').slice(0, 20),
+            numero_doc: (data.correlativo || '').slice(0, 20),
             fecha: new Date().toISOString(),
             total: data.items.reduce((acc, it) => acc + (it.cantidad * it.costo), 0)
         }]).select().single()

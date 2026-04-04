@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Navigation, User, MapPin, Clock, Zap } from 'lucide-react';
+import { Search, Navigation, User, MapPin, Clock, Zap, Truck, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
@@ -21,63 +21,79 @@ const center = { lat: -12.0464, lng: -77.0428 }; // Lima, Peru
 export default function SupervisionMapaPage() {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
+        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_FALLBACK_KEY' // Reemplazar con key real si es necesario
     });
 
     const [map, setMap] = useState<google.maps.Map | null>(null);
     const [selectedVendId, setSelectedVendId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Fetch real sellers
-    const { data: vendedores, isLoading: loadingVends } = useQuery({
-        queryKey: ['vendedores-gps'],
+    // Fetch units (Vendedores + Vehículos)
+    const { data: unidades, isLoading: loadingUnits } = useQuery({
+        queryKey: ['unidades-gps'],
         queryFn: async () => {
-            const { data: users, error } = await supabase
+            // 1. Fetch Vendedores
+            const { data: users } = await supabase
                 .from('usuarios')
                 .select('id, nombres, apellidos, rol, codigo_vendedor')
                 .eq('rol', 'vendedor')
                 .eq('activo', true);
 
-            if (error) throw error;
+            // 2. Fetch Vehículos
+            const { data: vehiculos } = await supabase
+                .from('vehiculos')
+                .select('id, placa, modelo, marca')
+                .eq('activo', true);
 
-            // Fetch latest tracking for each
+            // 3. Fetch latest tracking for all
             const { data: tracking } = await supabase
                 .from('tracking_gps')
                 .select('*')
                 .order('hora', { ascending: false });
 
-            // Fetch visits of today
+            const today = new Date().toISOString().split('T')[0];
             const { data: visits } = await supabase
                 .from('visitas_gps')
                 .select('*, clientes(razon_social, latitud, longitud)')
-                .eq('fecha', new Date().toISOString().split('T')[0]);
+                .eq('fecha', today);
 
-            // If demo mode (few/no sellers with pos), add mock ones
-            let finalSellers = users.map(u => {
+            const sellers = (users || []).map(u => {
                 const lastTrack = tracking?.find(t => t.usuario_id === u.id);
                 const userVisits = visits?.filter(v => v.vendedor_id === u.id) || [];
-                const mockRoute = userVisits.length > 0
-                    ? userVisits.map(v => ({ lat: Number(v.clientes?.latitud), lng: Number(v.clientes?.longitud) }))
-                    : generateMockRoute(lastTrack?.latitud || center.lat, lastTrack?.longitud || center.lng);
-
                 return {
                     id: u.id,
+                    tipo: 'vendedor',
                     nombre: `${u.nombres} ${u.apellidos}`,
-                    codigo: u.codigo_vendedor,
+                    subtitulo: u.codigo_vendedor || 'VEND-001',
                     pos: lastTrack ? { lat: Number(lastTrack.latitud), lng: Number(lastTrack.longitud) } : { lat: center.lat + (Math.random() - 0.5) * 0.05, lng: center.lng + (Math.random() - 0.5) * 0.05 },
                     lastPing: lastTrack ? new Date(lastTrack.hora).toLocaleTimeString() : new Date().toLocaleTimeString(),
-                    activo: true, // Always active for demo
-                    distrito: 'Lima',
-                    ruta: mockRoute
+                    ruta: userVisits.map(v => ({ lat: Number(v.clientes?.latitud), lng: Number(v.clientes?.longitud) }))
                 };
             });
 
-            return finalSellers;
+            const fleet = (vehiculos || []).map(v => {
+                const lastTrack = tracking?.find(t => t.usuario_id === v.id); // Assuming vehicle tracking or driver tracking
+                return {
+                    id: v.id,
+                    tipo: 'vehiculo',
+                    nombre: v.placa,
+                    subtitulo: `${v.marca} ${v.modelo}`,
+                    pos: lastTrack ? { lat: Number(lastTrack.latitud), lng: Number(lastTrack.longitud) } : { lat: center.lat + (Math.random() - 0.5) * 0.05, lng: center.lng + (Math.random() - 0.5) * 0.05 },
+                    lastPing: lastTrack ? new Date(lastTrack.hora).toLocaleTimeString() : new Date().toLocaleTimeString(),
+                    ruta: []
+                };
+            });
+
+            return [...sellers, ...fleet];
         },
-        refetchInterval: 30000 // Refresh every 30s
+        refetchInterval: 30000
     });
 
-    const filteredVends = vendedores?.filter(v => v.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
+    const [filterType, setFilterType] = useState<'todos' | 'vendedor' | 'vehiculo'>('todos');
+    const filteredUnits = unidades?.filter(u =>
+        (filterType === 'todos' || u.tipo === filterType) &&
+        u.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     const onLoad = useCallback(function callback(map: google.maps.Map) {
         setMap(map);
@@ -87,7 +103,7 @@ export default function SupervisionMapaPage() {
         setMap(null);
     }, []);
 
-    const selectedVend = vendedores?.find(v => v.id === selectedVendId);
+    const selectedUnit = unidades?.find(u => u.id === selectedVendId);
 
     return (
         <div className="h-[calc(100vh-120px)] flex flex-col space-y-6">
@@ -99,17 +115,23 @@ export default function SupervisionMapaPage() {
                     <p className="text-gray-500 font-medium mt-1">Monitoreo satelital de fuerza de ventas y despacho en tiempo real.</p>
                 </div>
                 <div className="flex items-center gap-3 bg-white p-2 px-4 rounded-2xl shadow-sm border">
-                    <div className="flex -space-x-2">
-                        {vendedores?.slice(0, 3).map((v, i) => (
-                            <div key={i} className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold">
-                                {v.nombre[0]}
-                            </div>
-                        ))}
+                    <div className="flex gap-2">
+                        <Button
+                            variant={filterType === 'todos' ? 'default' : 'ghost'}
+                            size="sm" className="h-8 rounded-xl text-[10px] font-black"
+                            onClick={() => setFilterType('todos')}
+                        >TODOS</Button>
+                        <Button
+                            variant={filterType === 'vendedor' ? 'default' : 'ghost'}
+                            size="sm" className="h-8 rounded-xl text-[10px] font-black"
+                            onClick={() => setFilterType('vendedor')}
+                        ><Users className="w-3 h-3 mr-1" /> VENTAS</Button>
+                        <Button
+                            variant={filterType === 'vehiculo' ? 'default' : 'ghost'}
+                            size="sm" className="h-8 rounded-xl text-[10px] font-black"
+                            onClick={() => setFilterType('vehiculo')}
+                        ><Truck className="w-3 h-3 mr-1" /> FLOTA</Button>
                     </div>
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none font-black px-3 py-1">
-                        <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-ping" />
-                        {vendedores?.filter(v => v.activo).length} EN LÍNEA
-                    </Badge>
                 </div>
             </div>
 
@@ -128,39 +150,39 @@ export default function SupervisionMapaPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="flex-1 p-0 overflow-y-auto divide-y divide-gray-50 custom-scrollbar">
-                        {loadingVends ? (
+                        {loadingUnits ? (
                             <div className="p-12 text-center text-gray-400 font-medium italic">Sincronizando con satélites...</div>
-                        ) : filteredVends?.length === 0 ? (
+                        ) : filteredUnits?.length === 0 ? (
                             <div className="p-12 text-center text-gray-400 italic">No se encontraron unidades.</div>
-                        ) : filteredVends?.map(v => (
-                            <div key={v.id}
+                        ) : filteredUnits?.map(u => (
+                            <div key={u.id}
                                 onClick={() => {
-                                    setSelectedVendId(v.id);
-                                    if (v.pos) {
-                                        map?.panTo(v.pos);
+                                    setSelectedVendId(u.id);
+                                    if (u.pos) {
+                                        map?.panTo(u.pos);
                                         map?.setZoom(16);
                                     }
                                 }}
-                                className={`p-4 hover:bg-blue-50/50 cursor-pointer transition-all group relative ${selectedVendId === v.id ? 'bg-blue-50 border-l-4 border-blue-600' : ''}`}
+                                className={`p-4 hover:bg-blue-50/50 cursor-pointer transition-all group relative ${selectedVendId === u.id ? 'bg-blue-50 border-l-4 border-blue-600' : ''}`}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-md ${v.activo ? 'bg-blue-600' : 'bg-gray-400'}`}>
-                                            {v.nombre[0]}
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-md ${u.tipo === 'vehiculo' ? 'bg-amber-500' : 'bg-blue-600'}`}>
+                                            {u.tipo === 'vehiculo' ? <Truck className="w-5 h-5" /> : <User className="w-5 h-5" />}
                                         </div>
                                         <div>
-                                            <p className="font-black text-[13px] text-gray-800 uppercase tracking-tight">{v.nombre}</p>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{v.codigo || 'S/C'}</p>
+                                            <p className="font-black text-[13px] text-gray-800 uppercase tracking-tight">{u.nombre}</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{u.subtitulo}</p>
                                         </div>
                                     </div>
-                                    <Badge variant="outline" className={`text-[9px] font-black uppercase ${v.activo ? 'border-green-200 bg-green-50 text-green-600' : 'text-gray-300'}`}>
-                                        {v.activo ? 'Online' : 'Offline'}
+                                    <Badge variant="outline" className={`text-[9px] font-black uppercase border-green-200 bg-green-50 text-green-600`}>
+                                        En Linea
                                     </Badge>
                                 </div>
                                 <div className="flex items-center justify-between ml-1">
                                     <div className="flex items-center gap-3 text-[10px] text-gray-500 font-medium">
-                                        <div className="flex items-center gap-1"><Clock className="w-3 h-3 text-blue-500" /> {v.lastPing}</div>
-                                        <div className="flex items-center gap-1"><MapPin className="w-3 h-3 text-red-500" /> {v.distrito}</div>
+                                        <div className="flex items-center gap-1"><Clock className="w-3 h-3 text-blue-500" /> {u.lastPing}</div>
+                                        <div className="flex items-center gap-1"><MapPin className="w-3 h-3 text-red-500" /> Lima, PE</div>
                                     </div>
                                     <Navigation className="w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0" />
                                 </div>
@@ -191,51 +213,45 @@ export default function SupervisionMapaPage() {
                                 styles: mapStyles // High-end map dark/light mix
                             }}
                         >
-                            {vendedores?.map(v => v.pos && (
-                                <React.Fragment key={v.id}>
+                            {unidades?.map(u => u.pos && (
+                                <React.Fragment key={u.id}>
                                     <Marker
-                                        position={v.pos}
-                                        onClick={() => setSelectedVendId(v.id)}
+                                        position={u.pos}
+                                        onClick={() => setSelectedVendId(u.id)}
                                         icon={{
-                                            path: google.maps.SymbolPath.CIRCLE,
-                                            fillColor: v.id === selectedVendId ? '#2563EB' : v.activo ? '#3B82F6' : '#94A3B8',
-                                            fillOpacity: 1,
-                                            strokeColor: '#FFFFFF',
-                                            strokeWeight: 4,
-                                            scale: v.id === selectedVendId ? 10 : 8,
+                                            url: u.tipo === 'vehiculo'
+                                                ? 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="%23F59E0B" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3m10 0h2l3.41-5.12A1.99 1.99 0 0 0 19 11h-4v6z"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>')
+                                                : 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="%232563EB" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'),
+                                            scaledSize: new google.maps.Size(32, 32),
+                                            anchor: new google.maps.Point(16, 16)
                                         }}
                                     />
-                                    {v.ruta.length > 0 && (selectedVendId === v.id || !selectedVendId) && (
+                                    {u.ruta?.length > 0 && (selectedVendId === u.id || !selectedVendId) && (
                                         <Polyline
-                                            path={v.ruta}
+                                            path={u.ruta}
                                             options={{
-                                                strokeColor: v.activo ? '#3B82F6' : '#94A3B8',
+                                                strokeColor: '#3B82F6',
                                                 strokeOpacity: 0.6,
                                                 strokeWeight: 4,
-                                                icons: [{
-                                                    icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, fillOpacity: 1, scale: 2 },
-                                                    offset: '100%',
-                                                    repeat: '100px'
-                                                }]
                                             }}
                                         />
                                     )}
-                                    {selectedVendId === v.id && (
-                                        <InfoWindow position={v.pos} onCloseClick={() => setSelectedVendId(null)}>
+                                    {selectedVendId === u.id && (
+                                        <InfoWindow position={u.pos} onCloseClick={() => setSelectedVendId(null)}>
                                             <div className="p-3 max-w-xs bg-white rounded-xl">
                                                 <div className="flex items-center gap-3 mb-2 border-b pb-2">
-                                                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs">
-                                                        {v.nombre[0]}
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${u.tipo === 'vehiculo' ? 'bg-amber-500' : 'bg-blue-600'}`}>
+                                                        {u.tipo === 'vehiculo' ? <Truck className="w-4 h-4" /> : <User className="w-4 h-4" />}
                                                     </div>
                                                     <div>
-                                                        <p className="font-black text-sm text-gray-900 leading-tight uppercase tracking-tighter">{v.nombre}</p>
-                                                        <p className="text-[9px] text-gray-400 font-bold uppercase">{v.codigo}</p>
+                                                        <p className="font-black text-sm text-gray-900 leading-tight uppercase tracking-tighter">{u.nombre}</p>
+                                                        <p className="text-[9px] text-gray-400 font-bold uppercase">{u.subtitulo}</p>
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <p className="text-[10px] flex justify-between font-medium"><span>Carga:</span> <span className="font-black text-blue-600">82%</span></p>
-                                                    <p className="text-[10px] flex justify-between font-medium"><span>Estado:</span> <span className={`${v.activo ? 'text-green-600' : 'text-gray-400'} font-black uppercase`}>{v.activo ? 'En Ruta' : 'Pausado'}</span></p>
-                                                    <p className="text-[10px] flex justify-between font-medium"><span>Velocidad:</span> <span className="font-mono">14 km/h</span></p>
+                                                    <p className="text-[10px] flex justify-between font-medium"><span>Estado:</span> <span className={`text-green-600 font-black uppercase`}>En Ruta</span></p>
+                                                    <p className="text-[10px] flex justify-between font-medium"><span>Last Ping:</span> <span className="font-mono">{u.lastPing}</span></p>
                                                 </div>
                                                 <Button size="sm" className="w-full mt-3 h-8 bg-slate-900 text-[9px] font-black uppercase tracking-widest rounded-lg">
                                                     Ver Ruta Completa

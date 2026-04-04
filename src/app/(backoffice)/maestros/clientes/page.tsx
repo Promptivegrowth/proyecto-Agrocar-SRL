@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
+import { guardarCliente, toggleEstadoCliente } from '../actions';
 
 export default function ClientesPage() {
     const queryClient = useQueryClient();
@@ -44,32 +45,9 @@ export default function ClientesPage() {
 
     const mutationSave = useMutation({
         mutationFn: async (cliente: any) => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                toast.error('Sesión expirada. Reingrese al sistema.');
-                window.location.href = '/login';
-                return;
-            }
-
-            const { data: usuario, error: userError } = await supabase
-                .from('usuarios')
-                .select('empresa_id')
-                .eq('id', user.id)
-                .single();
-
-            if (userError || !usuario) {
-                throw new Error('No se encontró la empresa del usuario.');
-            }
-
-            const payload = { ...cliente, empresa_id: usuario.empresa_id };
-
-            if (currentClient) {
-                const { error } = await supabase.from('clientes').update(payload).eq('id', currentClient.id);
-                if (error) throw error;
-            } else {
-                const { error } = await supabase.from('clientes').insert([payload]);
-                if (error) throw error;
-            }
+            const res = await guardarCliente(cliente, currentClient?.id);
+            if (res.error) throw new Error(res.error);
+            return res;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['clientes'] });
@@ -84,8 +62,8 @@ export default function ClientesPage() {
 
     const mutationToggleStatus = useMutation({
         mutationFn: async ({ id, estado }: { id: string, estado: string }) => {
-            const { error } = await supabase.from('clientes').update({ estado }).eq('id', id);
-            if (error) throw error;
+            const res = await toggleEstadoCliente(id, estado);
+            if (res.error) throw new Error(res.error);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['clientes'] });

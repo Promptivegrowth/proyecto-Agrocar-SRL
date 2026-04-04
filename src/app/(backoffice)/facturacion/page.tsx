@@ -11,7 +11,8 @@ import {
     CheckCircle2,
     Clock,
     AlertTriangle,
-    BarChart3
+    BarChart3,
+    Truck
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,13 @@ export default function FacturacionPage() {
             href: '/facturacion/configuracion',
             icon: Settings,
             color: 'bg-gray-500'
+        },
+        {
+            title: 'Guías de Remisión',
+            description: 'Emite y consulta guías de remitente (Traslados).',
+            href: '/facturacion/guias',
+            icon: Truck,
+            color: 'bg-orange-500'
         }
     ];
 
@@ -73,7 +81,7 @@ export default function FacturacionPage() {
             </div>
 
             {/* Main Menu */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {menuItems.map((item, idx) => (
                     <Link key={idx} href={item.href} className="group">
                         <Card className="h-full border-2 border-transparent hover:border-primary/20 hover:shadow-xl transition-all duration-300">

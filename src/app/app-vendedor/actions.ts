@@ -72,3 +72,45 @@ export async function registrarTracking(lat: number, lng: number, velocidad: num
         velocidad
     }]);
 }
+
+export async function registrarAsistencia(tipo: 'ingreso' | 'salida') {
+    const userRes = await supabase.auth.getUser();
+    const userId = userRes.data.user?.id;
+    if (!userId) throw new Error('No autenticado');
+
+    // Simple attendance record in a custom meta or existing tracking
+    // For now, we'll just log it in tracking with a special flag/velocidad if needed,
+    // or better, a dedicated table if we had one. 
+    // Since we don't have an 'asistencia' table in schema.sql, we'll use tracking_gps with speed -1 for ingress, -2 for egress as a hack for demo
+    await supabase.from('tracking_gps').insert([{
+        usuario_id: userId,
+        fecha: new Date().toISOString().split('T')[0],
+        hora: new Date().toISOString(),
+        latitud: 0,
+        longitud: 0,
+        velocidad: tipo === 'ingreso' ? -1 : -2
+    }]);
+
+    return { success: true };
+}
+
+export async function registrarProspecto(data: any) {
+    const userRes = await supabase.auth.getUser();
+    const userId = userRes.data.user?.id;
+    if (!userId) throw new Error('No autenticado');
+
+    const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', userId).single();
+    if (!usuario) throw new Error('Usuario sin empresa');
+
+    const { error } = await supabase.from('clientes').insert([{
+        ...data,
+        empresa_id: usuario.empresa_id,
+        vendedor_asignado_id: userId,
+        estado: 'activo',
+        tipo_cliente: 'otro',
+        lista_precio: 'B'
+    }]);
+
+    if (error) throw error;
+    return { success: true };
+}

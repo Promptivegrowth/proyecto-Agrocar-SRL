@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 export default function ProductosPage() {
     const queryClient = useQueryClient();
     const [busqueda, setBusqueda] = useState('');
-    const [mostrarInactivos, setMostrarInactivos] = useState(false);
+    const [filtroEstado, setFiltroEstado] = useState('activos');
     const [categoria, setCategoria] = useState('ALL');
 
     // Form State
@@ -26,10 +26,11 @@ export default function ProductosPage() {
     const [currentProduct, setCurrentProduct] = useState<any>(null);
 
     const { data: productos, isLoading } = useQuery({
-        queryKey: ['productos', busqueda, mostrarInactivos, categoria],
+        queryKey: ['productos', busqueda, filtroEstado, categoria],
         queryFn: async () => {
             let q = supabase.from('productos').select(`*, stock(cantidad, almacen_id)`);
-            if (!mostrarInactivos) q = q.eq('activo', true);
+            if (filtroEstado === 'activos') q = q.eq('activo', true);
+            else if (filtroEstado === 'inactivos') q = q.eq('activo', false);
             if (categoria !== 'ALL') q = q.eq('categoria', categoria);
             if (busqueda) q = q.ilike('descripcion', `%${busqueda}%`);
             const { data, error } = await q.order('descripcion');
@@ -177,15 +178,16 @@ export default function ProductosPage() {
                         <SelectItem value="Pescados">Pescados</SelectItem>
                     </SelectContent>
                 </Select>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-600 cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={mostrarInactivos}
-                        onChange={(e) => setMostrarInactivos(e.target.checked)}
-                        className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
-                    />
-                    Mostrar inactivos
-                </label>
+                <Select value={filtroEstado} onValueChange={(v) => v && setFiltroEstado(v)}>
+                    <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="todos">Todos</SelectItem>
+                        <SelectItem value="activos">Solo Activos</SelectItem>
+                        <SelectItem value="inactivos">Solo Inactivos</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -242,7 +244,7 @@ export default function ProductosPage() {
                     </TableBody>
                 </Table>
             </div>
-        </div>
+        </div >
     );
 }
 

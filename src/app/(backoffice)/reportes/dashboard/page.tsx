@@ -2,7 +2,7 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, PieChart as PieChartIcon } from 'lucide-react';
+import { Download, PieChart as PieChartIcon, TrendingUp, DollarSign, Package } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -72,52 +72,102 @@ export default function ReportesDashboardPage() {
                 </Button>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Utilidad Estimada</p>
+                                <p className="text-3xl font-black mt-1">S/ 12,450.00</p>
+                            </div>
+                            <TrendingUp className="w-10 h-10 text-green-400 opacity-20" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-white border-none shadow-sm">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Ticket Promedio</p>
+                                <p className="text-3xl font-black mt-1 text-slate-800">S/ 1,240</p>
+                            </div>
+                            <DollarSign className="w-10 h-10 text-blue-500 opacity-20" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-white border-none shadow-sm">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Rotación Stock</p>
+                                <p className="text-3xl font-black mt-1 text-slate-800">85%</p>
+                            </div>
+                            <Package className="w-10 h-10 text-orange-500 opacity-20" />
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Ventas Últimos 7 Días</CardTitle>
+                <Card className="border-none shadow-md overflow-hidden">
+                    <CardHeader className="bg-slate-50/50">
+                        <CardTitle className="text-lg font-black text-slate-700 flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5 text-primary" /> Ventas Últimos 7 Días
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-[300px]">
+                    <CardContent className="p-6 h-[350px]">
                         {loadingSales ? (
-                            <div className="flex justify-center items-center h-full text-gray-400">Cargando gráficos...</div>
+                            <div className="flex justify-center items-center h-full text-gray-400">Generando analítica...</div>
                         ) : (
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={salesData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                                    <YAxis axisLine={false} tickLine={false} />
-                                    <Tooltip cursor={{ fill: 'transparent' }} formatter={(value: any) => `S/ ${Number(value).toFixed(2)}`} />
-                                    <Line type="monotone" dataKey="ventas" stroke="#1A2C45" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                        formatter={(value: any) => [`S/ ${Number(value).toLocaleString()}`, 'Ventas']}
+                                    />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="ventas"
+                                        stroke="#2563eb"
+                                        strokeWidth={4}
+                                        dot={{ r: 6, fill: '#2563eb', strokeWidth: 2, stroke: '#fff' }}
+                                        activeDot={{ r: 8, strokeWidth: 0 }}
+                                    />
                                 </LineChart>
                             </ResponsiveContainer>
                         )}
                     </CardContent>
                 </Card>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Distribución por Categorías</CardTitle>
+                <Card className="border-none shadow-md overflow-hidden">
+                    <CardHeader className="bg-slate-50/50">
+                        <CardTitle className="text-lg font-black text-slate-700 flex items-center gap-2">
+                            <PieChartIcon className="w-5 h-5 text-primary" /> Distribución por Categorías
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-[300px] flex items-center justify-center">
+                    <CardContent className="p-6 h-[350px] flex items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={categoryData || []}
                                     cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
+                                    cy="45%"
+                                    innerRadius={70}
+                                    outerRadius={110}
                                     fill="#8884d8"
-                                    paddingAngle={5}
+                                    paddingAngle={8}
                                     dataKey="value"
-                                    label
+                                    cornerRadius={6}
                                 >
                                     {categoryData?.map((entry: any, index: number) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip formatter={(value: any) => `S/ ${Number(value).toFixed(2)}`} />
-                                <Legend />
+                                <Tooltip formatter={(value: any) => `S/ ${Number(value).toLocaleString()}`} />
+                                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </CardContent>

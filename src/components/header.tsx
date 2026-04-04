@@ -11,11 +11,14 @@ export default function Header() {
     const handleSignOut = async () => {
         try {
             await supabase.auth.signOut();
-            // Force redirection to login via window.location for total session clearing
-            window.location.href = '/login';
+            // Clear all local storage and cookies to be safe
+            localStorage.clear();
+            sessionStorage.clear();
+            // Redirect to login
+            window.location.replace('/login');
         } catch (error) {
             console.error('Logout error:', error);
-            window.location.href = '/login';
+            window.location.replace('/login');
         }
     };
 

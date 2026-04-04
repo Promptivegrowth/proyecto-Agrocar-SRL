@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { FileSpreadsheet, Download, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,11 +15,14 @@ export default function RegistroVentasPage() {
     const exportarTXT = async () => {
         try {
             setIsExporting(true);
+            const mesSig = Number(periodo.mes) === 12 ? 1 : Number(periodo.mes) + 1;
+            const anioSig = Number(periodo.mes) === 12 ? Number(periodo.anio) + 1 : Number(periodo.anio);
+
             const { data, error } = await supabase
                 .from('comprobantes')
                 .select('*')
                 .gte('fecha_emision', `${periodo.anio}-${periodo.mes}-01`)
-                .lt('fecha_emision', `${periodo.anio}-${String(Number(periodo.mes) + 1).padStart(2, '0')}-01`);
+                .lt('fecha_emision', `${anioSig}-${String(mesSig).padStart(2, '0')}-01`);
 
             if (error) throw error;
 
@@ -95,7 +99,11 @@ export default function RegistroVentasPage() {
                             {isExporting ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
                             Descargar TXT (Estructura 14.1)
                         </Button>
-                        <Button variant="outline" className="flex-1 text-primary border-primary hover:bg-primary/5">
+                        <Button
+                            variant="outline"
+                            className="flex-1 text-primary border-primary hover:bg-primary/5"
+                            onClick={() => toast.info('Generando previsualización Excel...')}
+                        >
                             <Download className="w-4 h-4 mr-2" /> Previsualizar Excel
                         </Button>
                     </div>

@@ -15,7 +15,8 @@ import {
     Flag,
     CheckCircle2,
     ShoppingBag,
-    XCircle
+    XCircle,
+    ArrowUpRight
 } from "lucide-react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,13 +25,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { registrarCheckin, registrarCheckout } from './actions';
+import { registrarCheckin, registrarCheckout, registrarAsistencia, registrarProspecto } from './actions';
 
 export default function AppVendedorDashboard() {
     const queryClient = useQueryClient();
     const [busqueda, setBusqueda] = useState('');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+    const [isAsistenciaOpen, setIsAsistenciaOpen] = useState(false);
+    const [prospectData, setProspectData] = useState({ razon_social: '', numero_documento: '', direccion: '', telefono: '' });
     const [checkoutData, setCheckoutData] = useState({ resultado: 'pedido_tomado', observaciones: '' });
 
     // 1. Visita Activa
@@ -114,10 +117,29 @@ export default function AppVendedorDashboard() {
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
-            queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
-            setIsCheckoutOpen(false);
             toast.success('Check-out registrado. Visita finalizada.');
+        }
+    });
+
+    const mutationAsistencia = useMutation({
+        mutationFn: async (tipo: 'ingreso' | 'salida') => {
+            return registrarAsistencia(tipo);
+        },
+        onSuccess: () => {
+            toast.success('Asistencia registrada correctamente');
+            setIsAsistenciaOpen(false);
+        }
+    });
+
+    const mutationProspecto = useMutation({
+        mutationFn: async () => {
+            return registrarProspecto(prospectData);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
+            setIsDialogOpen(false);
+            setProspectData({ razon_social: '', numero_documento: '', direccion: '', telefono: '' });
+            toast.success('Prospecto registrado con éxito');
         }
     });
 
@@ -125,25 +147,31 @@ export default function AppVendedorDashboard() {
         <div className="flex-1 bg-slate-50 flex flex-col relative pb-32 font-sans overflow-hidden">
             {/* Active Visit Banner */}
             {visitaActiva && (
-                <div className="bg-blue-600 p-4 text-white flex items-center justify-between sticky top-0 z-50 shadow-lg animate-in slide-in-from-top duration-500">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-white/20 p-2 rounded-xl animate-pulse">
-                            <Timer className="w-5 h-5" />
+                <div className="bg-blue-600 p-4 text-white flex flex-col gap-3 sticky top-0 z-50 shadow-lg animate-in slide-in-from-top duration-500">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-white/20 p-2 rounded-xl animate-pulse">
+                                <Timer className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Visita Activa</p>
+                                <p className="font-bold text-sm line-clamp-1">{visitaActiva.clientes?.razon_social}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Visita Activa</p>
-                            <p className="font-bold text-sm line-clamp-1">{visitaActiva.clientes?.razon_social}</p>
+                        <div className="flex gap-2">
+                            <Link href={`/app-vendedor/pedido/${visitaActiva.cliente_id}`}>
+                                <Button size="sm" variant="secondary" className="bg-white text-blue-700 font-black text-[10px] px-3 h-8 rounded-lg uppercase">
+                                    <ShoppingBag className="w-3 h-3 mr-1" /> Pedido
+                                </Button>
+                            </Link>
+                            <Button onClick={() => setIsCheckoutOpen(true)} size="sm" className="bg-red-500 hover:bg-red-400 text-white font-black text-[10px] px-3 h-8 rounded-lg uppercase">
+                                <Flag className="w-3 h-3 mr-1" /> Finalizar
+                            </Button>
                         </div>
                     </div>
-                    <div className="flex gap-2">
-                        <Link href={`/app-vendedor/pedido/${visitaActiva.cliente_id}`}>
-                            <Button size="sm" variant="secondary" className="bg-white text-blue-700 font-black text-[10px] px-3 h-8 rounded-lg uppercase">
-                                <ShoppingBag className="w-3 h-3 mr-1" /> Pedido
-                            </Button>
-                        </Link>
-                        <Button onClick={() => setIsCheckoutOpen(true)} size="sm" className="bg-red-500 hover:bg-red-400 text-white font-black text-[10px] px-3 h-8 rounded-lg uppercase">
-                            <Flag className="w-3 h-3 mr-1" /> Finalizar
-                        </Button>
+                    <div className="flex items-center gap-4 bg-white/10 p-2 rounded-lg text-[10px] font-bold uppercase">
+                        <div className="flex items-center gap-1"><MapPin className="w-3 h-3" /> Lima, Cercado</div>
+                        <div className="flex items-center gap-1 opacity-60"><Timer className="w-3 h-3" /> Llegada est: 5 min</div>
                     </div>
                 </div>
             )}
@@ -168,6 +196,17 @@ export default function AppVendedorDashboard() {
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Venta Total</span>
                     </CardContent>
                 </Card>
+            </div>
+
+            {/* Asistencia Fast Actions */}
+            <div className="px-5 pb-4">
+                <Button
+                    variant="outline"
+                    onClick={() => setIsAsistenciaOpen(true)}
+                    className="w-full h-12 rounded-2xl border-dashed border-slate-300 text-slate-500 text-[10px] font-black uppercase tracking-widest bg-white"
+                >
+                    <Timer className="w-4 h-4 mr-2 text-blue-500" /> Marcar Asistencia (Ingreso/Salida)
+                </Button>
             </div>
 
             {/* Search */}
@@ -285,6 +324,91 @@ export default function AppVendedorDashboard() {
                             className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-blue-500/20"
                         >
                             {mutationCheckout.isPending ? 'Sincronizando...' : 'Confirmar Check-out'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Asistencia Dialog */}
+            <Dialog open={isAsistenciaOpen} onOpenChange={setIsAsistenciaOpen}>
+                <DialogContent className="rounded-3xl border-none p-0 overflow-hidden max-w-[90%] sm:max-w-[400px]">
+                    <div className="bg-slate-900 p-6 text-white text-center">
+                        <Timer className="w-12 h-12 mx-auto mb-4 text-blue-400" />
+                        <DialogTitle className="text-xl font-black uppercase italic italic">Control de Asistencia</DialogTitle>
+                        <p className="text-[10px] text-slate-400 uppercase font-black mt-2 tracking-widest">{new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    </div>
+                    <div className="p-6 grid grid-cols-2 gap-4">
+                        <Button
+                            className="h-24 rounded-3xl bg-green-50 text-green-700 border-none flex flex-col gap-2 hover:bg-green-100"
+                            onClick={() => mutationAsistencia.mutate('ingreso')}
+                        >
+                            <ArrowUpRight className="w-6 h-6" />
+                            <span className="font-black text-xs">REGISTRAR INGRESO</span>
+                        </Button>
+                        <Button
+                            className="h-24 rounded-3xl bg-red-50 text-red-700 border-none flex flex-col gap-2 hover:bg-red-100"
+                            onClick={() => mutationAsistencia.mutate('salida')}
+                        >
+                            <Flag className="w-6 h-6" />
+                            <span className="font-black text-xs">REGISTRAR SALIDA</span>
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Nuevo Prospecto Dialog */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="rounded-3xl border-none p-0 overflow-hidden max-w-[90%] sm:max-w-[500px]">
+                    <div className="bg-blue-600 p-6 text-white">
+                        <UserPlus className="w-10 h-10 mb-4" />
+                        <DialogTitle className="text-xl font-black uppercase italic">Nuevo Prospecto</DialogTitle>
+                        <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1">Registra un cliente potencial en ruta</p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <div className="space-y-2">
+                            <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">Razón Social / Nombre</Label>
+                            <Input
+                                className="h-12 rounded-xl bg-slate-50 border-none"
+                                value={prospectData.razon_social}
+                                onChange={(e) => setProspectData({ ...prospectData, razon_social: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">RUC / DNI</Label>
+                            <Input
+                                className="h-12 rounded-xl bg-slate-50 border-none"
+                                value={prospectData.numero_documento}
+                                onChange={(e) => setProspectData({ ...prospectData, numero_documento: e.target.value })}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">Teléfono</Label>
+                                <Input
+                                    className="h-12 rounded-xl bg-slate-50 border-none"
+                                    value={prospectData.telefono}
+                                    onChange={(e) => setProspectData({ ...prospectData, telefono: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">Distrito</Label>
+                                <Input className="h-12 rounded-xl bg-slate-50 border-none" placeholder="Ej: Lima" />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">Dirección</Label>
+                            <Input
+                                className="h-12 rounded-xl bg-slate-50 border-none"
+                                value={prospectData.direccion}
+                                onChange={(e) => setProspectData({ ...prospectData, direccion: e.target.value })}
+                            />
+                        </div>
+                        <Button
+                            className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase rounded-2xl shadow-xl shadow-blue-500/20 mt-4"
+                            onClick={() => mutationProspecto.mutate()}
+                            disabled={mutationProspecto.isPending}
+                        >
+                            {mutationProspecto.isPending ? 'REGISTRANDO...' : 'CREAR PROSPECTO'}
                         </Button>
                     </div>
                 </DialogContent>

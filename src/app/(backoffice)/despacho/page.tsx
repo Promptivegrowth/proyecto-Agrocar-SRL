@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Truck, MapPin, Search, Calendar, FileText, CheckCircle2, ChevronRight, Scale, Package } from 'lucide-react';
+import { Truck, MapPin, Search, Calendar, FileText, CheckCircle2, ChevronRight, Scale, Package, Zap } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -113,7 +113,7 @@ export default function DespachoPage() {
         queryFn: async () => {
             const { data, error } = await supabase.from('pedidos')
                 .select('*, clientes(razon_social, distrito, direccion), pedido_items(*, productos(descripcion, unidad_medida))')
-                .eq('estado', 'pendiente');
+                .in('estado', ['pendiente', 'confirmado', 'aprobado']);
             if (error) throw error;
             setPedidosPendientes(data || []);
             return data;
@@ -299,11 +299,16 @@ export default function DespachoPage() {
                                             <div className="space-y-2">
                                                 <div className="flex justify-between text-[11px] font-bold">
                                                     <span className="text-gray-500 uppercase">Capacidad de Carga</span>
-                                                    <span className={`${porcentajeCarga > 90 ? 'text-destructive' : 'text-primary'}`}>
+                                                    <span className={`${porcentajeCarga > 100 ? 'text-destructive font-black animate-pulse' : porcentajeCarga > 80 ? 'text-amber-500' : 'text-primary'}`}>
                                                         {pesoVehiculo.toFixed(1)} / {vehiculo.capacidad_kg || 1000} KG
                                                     </span>
                                                 </div>
-                                                <Progress value={porcentajeCarga} className={`h-2 ${porcentajeCarga > 90 ? 'bg-red-100' : ''}`} />
+                                                <Progress value={Math.min(porcentajeCarga, 100)} className={`h-2 ${porcentajeCarga > 100 ? 'bg-red-200' : ''}`} />
+                                                {porcentajeCarga > 100 && (
+                                                    <p className="text-[10px] text-destructive font-bold uppercase mt-1 flex items-center gap-1">
+                                                        <Zap className="w-3 h-3" /> Exceso de capacidad ({(porcentajeCarga - 100).toFixed(0)}%)
+                                                    </p>
+                                                )}
                                             </div>
 
                                             <div className="mt-4 flex items-center gap-2 text-xs text-gray-600 bg-white/50 p-2 rounded border border-dashed">

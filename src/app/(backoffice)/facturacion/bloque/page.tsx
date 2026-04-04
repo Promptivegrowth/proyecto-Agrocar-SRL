@@ -39,24 +39,35 @@ export default function FacturacionBloquePage() {
     const [selectedConsolidado, setSelectedConsolidado] = useState<any>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-    // 1. Fetch Consolidados preparados/en_ruta (listos para facturar)
+    // 1. Fetch Consolidados con lógica de join manual para evitar error 400 por falta de FK en Pedidos
     const { data: consolidados, isLoading } = useQuery({
         queryKey: ['consolidados-facturacion'],
         queryFn: async () => {
-            const { data, error } = await supabase
+            // Fetch Consolidados
+            const { data: consData, error: consError } = await supabase
                 .from('consolidados_despacho')
-                .select(`
-                    *,
-                    vehiculos(placa, chofer_id),
-                    pedidos(id, total, estado, clientes(tipo_documento))
-                `)
+                .select(`*, vehiculos(placa, chofer_id)`)
                 .neq('estado', 'cerrado')
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (consError) throw consError;
 
-            return data.map(c => {
-                const pedidosParaFacturar = c.pedidos?.filter((p: any) => p.estado !== 'facturado') || [];
+            if (!consData || consData.length === 0) return [];
+
+            const consIds = consData.map(c => c.id);
+
+            // Fetch Pedidos vinculados a estos consolidados (join manual)
+            const { data: pedData, error: pedError } = await supabase
+                .from('pedidos')
+                .select('id, total, estado, consolidado_id, clientes(tipo_documento)')
+                .in('consolidado_id', consIds);
+
+            if (pedError) throw pedError;
+
+            return consData.map(c => {
+                const pedidosDelConsolidado = pedData?.filter((p: any) => p.consolidado_id === c.id) || [];
+                const pedidosParaFacturar = pedidosDelConsolidado.filter((p: any) => p.estado !== 'facturado');
+
                 const totalMonto = pedidosParaFacturar.reduce((acc: number, p: any) => acc + (p.total || 0), 0);
                 const boletasCount = pedidosParaFacturar.filter((p: any) => p.clientes?.tipo_documento === 'DNI').length;
                 const facturasCount = pedidosParaFacturar.filter((p: any) => p.clientes?.tipo_documento === 'RUC').length;
@@ -73,6 +84,8 @@ export default function FacturacionBloquePage() {
             });
         }
     });
+
+
 
     // 2. Mutation for Emission
     const mutationEmitir = useMutation({
