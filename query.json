@@ -1,0 +1,3 @@
+{
+    "query": "ALTER TABLE clientes DROP CONSTRAINT IF EXISTS clientes_tipo_cliente_check; ALTER TABLE clientes ADD CONSTRAINT clientes_tipo_cliente_check CHECK (tipo_cliente IN ('principal', 'secundario', 'prospecto', 'otro'));"
+}

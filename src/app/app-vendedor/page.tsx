@@ -105,7 +105,12 @@ export default function AppVendedorDashboard() {
             queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
             toast.success('Check-in registrado. Visita iniciada.');
         },
-        onError: (err: any) => toast.error(err.message || 'Error al iniciar visita')
+        onError: (err: any) => {
+            if (err.message.includes('Ya tienes una visita activa')) {
+                queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
+            }
+            toast.error(err.message || 'Error al iniciar visita');
+        }
     });
 
     const mutationCheckout = useMutation({
@@ -243,6 +248,12 @@ export default function AppVendedorDashboard() {
                     </div>
                     Asistencia (Ingreso/Salida)
                 </Button>
+
+                {!visitaActiva && (
+                    <p className="text-[10px] text-center text-slate-400 font-bold uppercase cursor-pointer hover:text-blue-500 transition-colors" onClick={() => queryClient.invalidateQueries({ queryKey: ['visita-activa'] })}>
+                        ¿No ves tu visita activa? <span className="underline">Sincronizar ahora</span>
+                    </p>
+                )}
             </div>
 
             {/* Search */}
