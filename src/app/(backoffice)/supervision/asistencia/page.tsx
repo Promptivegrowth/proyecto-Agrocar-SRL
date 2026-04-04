@@ -13,26 +13,32 @@ export default function AsistenciaPage() {
     const { data: asistencias, isLoading } = useQuery({
         queryKey: ['asistencia-vendedores'],
         queryFn: async () => {
+            const today = new Date().toISOString().split('T')[0];
             const { data, error } = await supabase
                 .from('tracking_gps')
-                .select('*, usuarios(nombre_completo)')
+                .select('*, usuarios(nombres, apellidos)')
+                .eq('fecha', today)
                 .in('velocidad', [-1, -2])
                 .order('hora', { ascending: false });
             if (error) throw error;
             return data;
-        }
+        },
+        refetchInterval: 15000
     });
 
     const { data: visitasActivas } = useQuery({
         queryKey: ['visitas-activas-now'],
         queryFn: async () => {
+            const today = new Date().toISOString().split('T')[0];
             const { data, error } = await supabase
                 .from('visitas_gps')
-                .select('*, usuarios(nombre_completo), clientes(razon_social)')
+                .select('*, usuarios(nombres, apellidos), clientes(razon_social)')
+                .eq('fecha', today)
                 .is('hora_checkout', null);
             if (error) throw error;
             return data;
-        }
+        },
+        refetchInterval: 10000
     });
 
     return (
@@ -81,7 +87,7 @@ export default function AsistenciaPage() {
                                     <TableRow key={v.id} className="hover:bg-blue-50/50 transition-colors">
                                         <TableCell className="font-bold flex items-center gap-2 text-sm">
                                             <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600"><User className="w-4 h-4" /></div>
-                                            {v.usuarios?.nombre_completo}
+                                            {v.usuarios?.nombres} {v.usuarios?.apellidos}
                                         </TableCell>
                                         <TableCell className="font-medium text-gray-500 text-xs truncate max-w-[150px]">{v.clientes?.razon_social}</TableCell>
                                         <TableCell className="font-black text-xs text-blue-600">

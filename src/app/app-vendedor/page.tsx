@@ -107,31 +107,28 @@ export default function AppVendedorDashboard() {
 
     const mutationCheckin = useMutation({
         mutationFn: async (cliente: any) => {
-            if (!navigator.geolocation) throw new Error('GPS no disponible');
-
-            return new Promise((resolve, reject) => {
-                const timeoutId = setTimeout(() => reject(new Error('Tiempo de espera de GPS agotado.')), 8000);
-
-                navigator.geolocation.getCurrentPosition(async (pos) => {
-                    clearTimeout(timeoutId);
-                    try {
-                        const res = await registrarCheckin(cliente.id, pos.coords.latitude, pos.coords.longitude);
-                        if (res.error) reject(new Error(res.error));
-                        else resolve(res);
-                    } catch (e) { reject(e); }
-                }, (err) => {
-                    clearTimeout(timeoutId);
-                    reject(new Error('Debes permitir acceso al GPS para iniciar visita.'));
-                }, { enableHighAccuracy: true });
+            // Try GPS, fallback to 0,0 if unavailable
+            const getPos = (): Promise<{ lat: number; lng: number }> => new Promise((res) => {
+                if (!navigator.geolocation) { res({ lat: 0, lng: 0 }); return; }
+                const t = setTimeout(() => res({ lat: 0, lng: 0 }), 5000);
+                navigator.geolocation.getCurrentPosition(
+                    (p) => { clearTimeout(t); res({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+                    () => { clearTimeout(t); res({ lat: 0, lng: 0 }); },
+                    { enableHighAccuracy: false, timeout: 5000 }
+                );
             });
+            const { lat, lng } = await getPos();
+            const r = await registrarCheckin(cliente.id, lat, lng);
+            if (r.error) throw new Error(r.error);
+            return r;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
             queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
-            toast.success('Check-in registrado. Visita iniciada.');
+            toast.success('Visita iniciada correctamente.');
         },
         onError: (err: any) => {
-            if (err.message.includes('Ya tienes una visita activa')) {
+            if (err.message?.includes('Ya tienes una visita activa')) {
                 queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
             }
             toast.error(err.message || 'Error al iniciar visita');
@@ -141,25 +138,30 @@ export default function AppVendedorDashboard() {
     const mutationCheckout = useMutation({
         mutationFn: async () => {
             if (!visitaActiva) return;
-            return new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(async (pos) => {
-                    try {
-                        const res = await registrarCheckout(
-                            visitaActiva.id,
-                            pos.coords.latitude,
-                            pos.coords.longitude,
-                            checkoutData.resultado,
-                            checkoutData.observaciones
-                        );
-                        if (res.error) reject(new Error(res.error));
-                        else resolve(true);
-                    } catch (e) { reject(e); }
-                }, (err) => reject(new Error('Indispensable GPS para finalizar visita.')), { enableHighAccuracy: true });
+            // Try GPS, fallback to 0,0 if unavailable - never leave user stuck
+            const getPos = (): Promise<{ lat: number; lng: number }> => new Promise((res) => {
+                if (!navigator.geolocation) { res({ lat: 0, lng: 0 }); return; }
+                const t = setTimeout(() => res({ lat: 0, lng: 0 }), 5000);
+                navigator.geolocation.getCurrentPosition(
+                    (p) => { clearTimeout(t); res({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+                    () => { clearTimeout(t); res({ lat: 0, lng: 0 }); },
+                    { enableHighAccuracy: false, timeout: 5000 }
+                );
             });
+            const { lat, lng } = await getPos();
+            const res = await registrarCheckout(
+                visitaActiva.id, lat, lng,
+                checkoutData.resultado || 'sin_resultado',
+                checkoutData.observaciones
+            );
+            if (res.error) throw new Error(res.error);
+            return true;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
-            toast.success('Check-out registrado. Visita finalizada.');
+            queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
+            setIsCheckoutOpen(false);
+            toast.success('Visita finalizada correctamente.');
         },
         onError: (err: any) => toast.error(err.message || 'Error al finalizar visita')
     });
