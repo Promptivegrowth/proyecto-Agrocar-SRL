@@ -2,10 +2,12 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { PackageSearch, History, ArrowRightLeft, ArrowUpCircle } from 'lucide-react';
+import { PackageSearch, History, ArrowRightLeft, ArrowUpCircle, Filter } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 
 export default function AlmacenPage() {
@@ -15,12 +17,29 @@ export default function AlmacenPage() {
             const { data, error } = await supabase
                 .from('stock')
                 .select(`
-          cantidad,
-          costo_promedio,
-          productos(codigo, descripcion, unidad_medida),
-          almacenes(nombre)
-        `)
+                    cantidad,
+                    costo_promedio,
+                    productos(codigo, descripcion, unidad_medida),
+                    almacenes(nombre)
+                `)
                 .order('cantidad', { ascending: false });
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const { data: movimientos, isLoading: loadingKardex } = useQuery({
+        queryKey: ['kardexGlobal'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('stock_movimientos')
+                .select(`
+                    id, fecha, tipo, motivo, cantidad, saldo_posterior,
+                    productos(descripcion, unidad_medida),
+                    almacenes(nombre)
+                `)
+                .order('fecha', { ascending: false })
+                .limit(50);
             if (error) throw error;
             return data;
         }
@@ -41,7 +60,7 @@ export default function AlmacenPage() {
                             <ArrowUpCircle className="w-4 h-4 mr-2" /> Ingreso de Mercadería
                         </Button>
                     </Link>
-                    <Button variant="outline">
+                    <Button variant="outline" onClick={() => toast.info("Módulo de Transferencias en desarrollo para la siguiente fase.")}>
                         <ArrowRightLeft className="w-4 h-4 mr-2 text-gray-600" /> Transferencia
                     </Button>
                 </div>
@@ -109,8 +128,52 @@ export default function AlmacenPage() {
                 </TabsContent>
 
                 <TabsContent value="movimientos" className="mt-0">
-                    <div className="bg-white p-8 text-center text-gray-500 rounded-lg shadow-sm border border-gray-200">
-                        Registro KARDEX (Vista de movimientos históricos irá aquí)
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <Table>
+                            <TableHeader className="bg-gray-50/80">
+                                <TableRow>
+                                    <TableHead>Fecha</TableHead>
+                                    <TableHead>Almacén</TableHead>
+                                    <TableHead>Producto</TableHead>
+                                    <TableHead>Tipo</TableHead>
+                                    <TableHead className="text-right">Cant.</TableHead>
+                                    <TableHead className="text-right">Saldo Final</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {loadingKardex ? (
+                                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-500">Cargando movimientos...</TableCell></TableRow>
+                                ) : movimientos?.length === 0 ? (
+                                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-500">Sin movimientos registrados en Kardex.</TableCell></TableRow>
+                                ) : (
+                                    movimientos?.map((m: any) => (
+                                        <TableRow key={m.id}>
+                                            <TableCell className="text-xs text-gray-500">
+                                                {new Date(m.fecha).toLocaleString()}
+                                            </TableCell>
+                                            <TableCell className="font-medium text-gray-600">
+                                                {m.almacenes?.nombre}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="text-sm font-medium">{m.productos?.descripcion}</div>
+                                                <div className="text-[10px] text-gray-400 uppercase">{m.motivo}</div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge className={m.tipo === 'entrada' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                                    {m.tipo.toUpperCase()}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold">
+                                                {m.tipo === 'entrada' ? '+' : '-'}{m.cantidad}
+                                            </TableCell>
+                                            <TableCell className="text-right font-medium text-gray-900">
+                                                {m.saldo_posterior}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
                     </div>
                 </TabsContent>
             </Tabs>

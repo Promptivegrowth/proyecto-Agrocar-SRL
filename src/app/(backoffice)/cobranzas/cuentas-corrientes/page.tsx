@@ -16,6 +16,19 @@ function CuentasCorrientesContent() {
     const queryClient = useQueryClient();
     const clienteId = params.get('cliente_id');
 
+    const { data: clientes, isLoading: loadingClients } = useQuery({
+        queryKey: ['clientes-cc-search'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('clientes')
+                .select('id, razon_social, numero_documento, estado')
+                .order('razon_social');
+            if (error) throw error;
+            return data;
+        },
+        enabled: !clienteId
+    });
+
     const { data: cliente, isLoading: loadingClient } = useQuery({
         queryKey: ['cliente-cc', clienteId],
         queryFn: async () => {
@@ -111,9 +124,51 @@ function CuentasCorrientesContent() {
 
     if (!clienteId) {
         return (
-            <div className="p-8 text-center text-gray-500 flex flex-col items-center">
-                <Wallet className="w-12 h-12 text-gray-300 mb-4" />
-                No se ha seleccionado ningún cliente. Utilice el buscador general para acceder a una cuenta de cliente.
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Cuentas Corrientes</h1>
+                    <p className="text-gray-500 mt-1">Seleccione un cliente para gestionar su estado de cuenta</p>
+                </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Buscador de Clientes</CardTitle>
+                        <CardDescription>Seleccione un cliente de la lista para ver sus deudas y cobranzas</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <Table>
+                                <TableHeader className="bg-gray-50 uppercase text-[10px]">
+                                    <TableRow>
+                                        <TableHead>Cliente</TableHead>
+                                        <TableHead>Documento</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                        <TableHead className="text-right">Acción</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {loadingClients ? (
+                                        <TableRow><TableCell colSpan={4} className="text-center py-8">Cargando...</TableCell></TableRow>
+                                    ) : clientes?.map(c => (
+                                        <TableRow key={c.id}>
+                                            <TableCell className="font-medium text-gray-900">{c.razon_social}</TableCell>
+                                            <TableCell className="text-gray-500">{c.numero_documento}</TableCell>
+                                            <TableCell>
+                                                <Badge className={c.estado === 'activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                                    {c.estado.toUpperCase()}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button size="sm" onClick={() => window.location.href = `/cobranzas/cuentas-corrientes?cliente_id=${c.id}`}>
+                                                    Ver Estado
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         );
     }

@@ -20,7 +20,7 @@ function SortableItem({ id, pedido }: { id: string, pedido: any }) {
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}
-            className="bg-white p-3 rounded-md border shadow-sm cursor-grab hover:border-primary active:cursor-grabbing">
+            className="group bg-white p-3 rounded-md border shadow-sm cursor-grab hover:border-primary active:cursor-grabbing transition-all hover:shadow-md">
             <div className="flex justify-between items-start mb-2">
                 <span className="font-bold text-sm">{pedido.numero}</span>
                 <Badge variant={pedido.estado === 'urgente' ? 'destructive' : 'secondary'} className="text-[10px]">
@@ -30,7 +30,12 @@ function SortableItem({ id, pedido }: { id: string, pedido: any }) {
             <p className="text-sm font-medium text-gray-800 line-clamp-1">{pedido.clientes?.razon_social || 'Cliente'}</p>
             <div className="flex items-center text-xs text-gray-500 mt-2 gap-3">
                 <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {pedido.clientes?.distrito || 'Sin distrito'}</span>
-                <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> S/ {pedido.total}</span>
+                <span className="flex items-center gap-1 font-semibold text-blue-600">S/ {pedido.total}</span>
+            </div>
+            <div className="mt-3 pt-2 border-t opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="sm" className="w-full h-7 text-[10px] text-gray-400 hover:text-primary" onClick={(e) => { e.stopPropagation(); toast.info(`Pedido ${pedido.numero}: ${pedido.clientes?.razon_social}`); }}>
+                    Ver Detalle
+                </Button>
             </div>
         </div>
     );
@@ -243,8 +248,10 @@ export default function DespachoPage() {
                                     <CardContent className="flex-1 p-3 bg-gray-50/30 overflow-y-auto min-h-[100px]">
                                         <div className="space-y-3">
                                             {vehiculo.consolidado.length === 0 ? (
-                                                <div className="h-full mt-10 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-400 text-sm py-8">
-                                                    Arrastre pedidos aquí
+                                                <div className="h-full mt-6 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 text-sm py-12 bg-white/50 backdrop-blur-sm group-hover:border-primary/50 transition-colors">
+                                                    <Truck className="w-8 h-8 mb-2 opacity-20" />
+                                                    <span className="font-medium">Carga Vacía</span>
+                                                    <span className="text-[10px] uppercase mt-1">Arrastre pedidos aquí</span>
                                                 </div>
                                             ) : (
                                                 vehiculo.consolidado.map((pedido: any) => (

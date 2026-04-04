@@ -175,12 +175,12 @@ async function seed() {
     ], { onConflict: 'placa' }).select();
 
     // 9. Seed Pedidos (Pre-venta)
-    console.log('📝 Seeding 15 orders (pedidos)...');
-    const { data: clientes } = await supabase.from('clientes').select('id').limit(10);
-    const estados = ['confirmado', 'pendiente', 'entregado', 'facturado'];
+    console.log('📝 Seeding 40 orders (pedidos)...');
+    const { data: clientes } = await supabase.from('clientes').select('id').limit(20);
+    const estados = ['confirmado', 'pendiente', 'entregado', 'facturado', 'en_despacho'];
 
     if (clientes && insertedProductos) {
-        for (let i = 0; i < 15; i++) {
+        for (let i = 0; i < 40; i++) {
             const cliente_id = clientes[i % clientes.length].id;
             const pedidoNumero = `PV-2026-${String(i + 1).padStart(5, '0')}`;
             const { data: pedido, error: pedError } = await supabase.from('pedidos').insert({
@@ -188,9 +188,9 @@ async function seed() {
                 numero: pedidoNumero,
                 cliente_id,
                 vendedor_id: vendedor?.id,
-                fecha_pedido: new Date().toISOString().split('T')[0],
+                fecha_pedido: new Date(Date.now() - (i % 5) * 86400000).toISOString().split('T')[0],
                 estado: estados[i % estados.length],
-                total: 200 + Math.random() * 500,
+                total: 500 + Math.random() * 2000,
                 vehiculo_id: vehiculos?.[0]?.id
             }).select().single();
 
@@ -199,74 +199,81 @@ async function seed() {
                 await supabase.from('pedido_items').insert([
                     {
                         pedido_id: pedido.id,
-                        producto_id: insertedProductos[i % 5].id,
-                        cantidad: 5,
-                        precio_unitario: 10
-                    },
-                    {
-                        pedido_id: pedido.id,
-                        producto_id: insertedProductos[(i + 1) % 5].id,
-                        cantidad: 2,
-                        precio_unitario: 15
+                        producto_id: insertedProductos[i % 10].id,
+                        cantidad: 10,
+                        precio_unitario: 20
                     }
                 ]);
 
-                // 10. Seed Comprobantes for 'facturado' orders
-                if (pedido.estado === 'facturado' || i % 3 === 0) {
+                // 10. Seed Comprobantes (Invoices) - 30 invoices
+                if (i < 30) {
                     console.log(`🧾 Seeding invoice for ${pedidoNumero}...`);
                     const serie = i % 2 === 0 ? 'F001' : 'B001';
                     const { data: comp } = await supabase.from('comprobantes').insert({
                         empresa_id,
                         tipo: serie.startsWith('F') ? '01' : '03',
                         serie,
-                        correlativo: 100 + i,
-                        numero_completo: `${serie}-${100 + i}`,
-                        fecha_emision: new Date().toISOString().split('T')[0],
+                        correlativo: 1000 + i,
+                        numero_completo: `${serie}-${1000 + i}`,
+                        fecha_emision: new Date(Date.now() - (i % 3) * 86400000).toISOString().split('T')[0],
                         pedido_id: pedido.id,
                         cliente_id,
                         total: pedido.total,
-                        estado_pago: i % 4 === 0 ? 'pagado' : 'pendiente', // 25% paid
+                        estado_pago: i % 3 === 0 ? 'pagado' : (i % 3 === 1 ? 'parcial' : 'pendiente'),
                         sunat_estado: 'aceptado',
-                        monto_pagado: i % 4 === 0 ? pedido.total : 0
+                        condicion_pago: (i % 3 === 0) ? 'contado' : 'credito',
+                        monto_pagado: i % 3 === 0 ? pedido.total : (i % 3 === 1 ? pedido.total / 2 : 0)
                     }).select().single();
 
-                    // 11. Seed Pagos for paid invoices
-                    if (comp && comp.estado_pago === 'pagado') {
+                    // 11. Seed Pagos - 20 payments
+                    if (comp && (comp.estado_pago === 'pagado' || comp.estado_pago === 'parcial')) {
                         await supabase.from('pagos').insert({
                             empresa_id,
                             comprobante_id: comp.id,
                             cliente_id,
                             fecha: new Date().toISOString().split('T')[0],
-                            monto: comp.total,
-                            metodo_pago: 'yape',
-                            usuario_cobrador_id: vendedor?.id
+                            monto: comp.monto_pagado,
+                            metodo_pago: i % 2 === 0 ? 'yape' : 'efectivo',
+                            usuario_cobrador_id: vendedor?.id,
+                            observaciones: 'Pago de prueba inyectado'
                         });
                     }
                 }
             }
         }
 
-        // 12. Seed Consolidados Despacho
-        console.log('🚛 Seeding 3 delivery blocks (consolidados)...');
-        for (let j = 0; j < 3; j++) {
+        // 12. Seed Caja
+        console.log('💰 Opening a cash register (caja)...');
+        await supabase.from('cajas').insert({
+            empresa_id,
+            nombre: 'Caja Central Lima',
+            usuario_id: users?.find(u => u.rol === 'facturador')?.id || users?.[0].id,
+            fecha: new Date().toISOString().split('T')[0],
+            monto_apertura: 1000,
+            estado: 'abierta',
+            hora_apertura: new Date().toISOString()
+        });
+
+        // 13. Seed Consolidados Despacho
+        console.log('🚛 Seeding 5 delivery blocks (consolidados)...');
+        for (let j = 0; j < 5; j++) {
             const { data: cons } = await supabase.from('consolidados_despacho').insert({
                 empresa_id,
                 numero: `C-2026-${String(j + 1).padStart(4, '0')}`,
                 fecha: new Date().toISOString().split('T')[0],
                 vehiculo_id: vehiculos?.[j % (vehiculos?.length || 1)].id,
                 chofer_id: repartidor?.id,
-                estado: j === 0 ? 'en_ruta' : 'preparando',
-                total_pedidos: 3
+                estado: j < 2 ? 'en_ruta' : 'preparando',
+                total_pedidos: 4
             }).select().single();
 
             if (cons) {
-                // Link some pedidos to this consolidado
-                const { data: pedsSub } = await supabase.from('pedidos').select('id').eq('estado', 'pendiente').limit(3);
+                // Link some facturado/en_despacho orders
+                const { data: pedsSub } = await supabase.from('pedidos').select('id').eq('estado', 'en_despacho').limit(4);
                 if (pedsSub) {
                     for (const p of pedsSub) {
                         await supabase.from('pedidos').update({
-                            consolidado_id: cons.id,
-                            estado: j === 0 ? 'en_despacho' : 'pendiente'
+                            consolidado_id: cons.id
                         }).eq('id', p.id);
                     }
                 }

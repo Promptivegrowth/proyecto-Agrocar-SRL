@@ -2,6 +2,7 @@
 import { LogOut } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { signOut } from '@/app/auth/actions';
 
 export default function PwaLayout({
     children,
@@ -12,10 +13,11 @@ export default function PwaLayout({
 
     const handleSignOut = async () => {
         try {
-            await supabase.auth.signOut();
-            window.location.href = '/login';
+            await signOut();
         } catch (error) {
             console.error('Logout error:', error);
+            // fallback
+            await supabase.auth.signOut();
             window.location.href = '/login';
         }
     };

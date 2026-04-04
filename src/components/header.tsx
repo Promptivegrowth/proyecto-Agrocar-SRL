@@ -3,16 +3,18 @@ import { UserCircle, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { signOut } from '@/app/auth/actions';
 
 export default function Header() {
     const router = useRouter();
 
     const handleSignOut = async () => {
         try {
-            await supabase.auth.signOut();
-            window.location.href = '/login';
+            await signOut();
         } catch (error) {
             console.error('Error signing out:', error);
+            // fallback if server action fails
+            await supabase.auth.signOut();
             window.location.href = '/login';
         }
     };
