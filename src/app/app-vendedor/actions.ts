@@ -9,35 +9,43 @@ export async function registrarCheckin(clienteId: string, lat: number, lng: numb
     if (!user) return { error: 'No autenticado' };
 
     try {
-        // 1. Verificar si ya hay una visita activa
+        // 1. Verificar si ya hay una visita activa (check both column names)
         const { data: activa } = await supabase
             .from('visitas_gps')
             .select('id')
-            .eq('vendedor_id', user.id)
+            .or(`vendedor_id.eq.${user.id},usuario_id.eq.${user.id}`)
             .is('hora_checkout', null)
             .maybeSingle();
 
         if (activa) return { error: 'Ya tienes una visita activa. Finalízala antes de iniciar otra.' };
 
-        // 2. Crear nueva visita
-        const { data: visita, error } = await supabase
+        // 2. Crear nueva visita — try vendedor_id first
+        const basePayload = {
+            cliente_id: clienteId,
+            fecha: new Date().toISOString().split('T')[0],
+            hora_checkin: new Date().toISOString(),
+            latitud_checkin: lat,
+            longitud_checkin: lng
+        };
+
+        const { data: visita, error: err } = await supabase
             .from('visitas_gps')
-            .insert([{
-                vendedor_id: user.id,
-                cliente_id: clienteId,
-                fecha: new Date().toISOString().split('T')[0],
-                hora_checkin: new Date().toISOString(),
-                latitud_checkin: lat,
-                longitud_checkin: lng
-            }])
-            .select()
-            .single();
+            .insert([{ ...basePayload, vendedor_id: user.id }])
+            .select().single();
 
-        if (error) throw error;
+        if (err) {
+            // Fallback: try usuario_id column
+            const { data: visita2, error: err2 } = await supabase
+                .from('visitas_gps')
+                .insert([{ ...basePayload, usuario_id: user.id }])
+                .select().single();
+            if (err2) throw err2;
+            await registrarTracking(lat, lng, 0);
+            revalidatePath('/app-vendedor');
+            return { success: true, data: visita2 };
+        }
 
-        // 3. Registrar en tracking general
         await registrarTracking(lat, lng, 0);
-
         revalidatePath('/app-vendedor');
         return { success: true, data: visita };
     } catch (e: any) {
@@ -45,6 +53,7 @@ export async function registrarCheckin(clienteId: string, lat: number, lng: numb
         return { error: e.message };
     }
 }
+
 
 export async function registrarCheckout(visitaId: string, lat: number, lng: number, resultado: string, observaciones: string) {
     const supabase = await createClient();
@@ -87,23 +96,25 @@ export async function registrarTracking(lat: number, lng: number, velocidad: num
 
 export async function registrarAsistencia(tipo: 'ingreso' | 'salida') {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'No autenticado' };
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return { error: 'No autenticado' };
 
-    try {
-        await supabase.from('tracking_gps').insert([{
-            usuario_id: user.id,
-            fecha: new Date().toISOString().split('T')[0],
-            hora: new Date().toISOString(),
-            latitud: 0,
-            longitud: 0,
-            velocidad: tipo === 'ingreso' ? -1 : -2
-        }]);
+    const { error: insertError } = await supabase.from('tracking_gps').insert([{
+        usuario_id: user.id,
+        fecha: new Date().toISOString().split('T')[0],
+        hora: new Date().toISOString(),
+        latitud: 0,
+        longitud: 0,
+        velocidad: tipo === 'ingreso' ? -1 : -2
+    }]);
 
-        return { success: true };
-    } catch (e: any) {
-        return { error: e.message };
+    if (insertError) {
+        console.error('registrarAsistencia error:', insertError);
+        return { error: insertError.message };
     }
+
+    revalidatePath('/app-vendedor');
+    return { success: true };
 }
 
 export async function registrarProspecto(data: any) {

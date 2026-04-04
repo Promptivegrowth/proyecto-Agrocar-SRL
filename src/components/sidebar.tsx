@@ -29,6 +29,7 @@ export default function Sidebar() {
 
                     <li className="pt-4 pb-1 px-4 text-xs font-semibold text-primary-foreground/50 uppercase">Gestión</li>
                     <li><Link href="/supervision/mapa" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><MapPin className="mr-3 h-5 w-5" /> GPS / Supervisión</Link></li>
+                    <li><Link href="/supervision/asistencia" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><Users className="mr-3 h-5 w-5" /> Asistencia / Visitas</Link></li>
                     <li><Link href="/reportes/dashboard" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><BarChart3 className="mr-3 h-5 w-5" /> Reportes</Link></li>
                     <li><Link href="/contabilidad/registro-ventas" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><BookOpen className="mr-3 h-5 w-5" /> Contabilidad (PLE)</Link></li>
                     <li><Link href="/configuracion/empresa" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><Settings className="mr-3 h-5 w-5" /> Configuración</Link></li>

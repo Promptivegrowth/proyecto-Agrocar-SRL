@@ -1,468 +1,688 @@
 'use client';
 
-import { useState } from 'react';
-import { Truck, Package, Plus, Trash2, CheckCircle2, FileText, Zap, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Truck, MapPin, Search, Calendar, FileText, CheckCircle2, ChevronRight, Scale, Package, Zap, Plus, Minus } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent, useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from "@/components/ui/progress";
+import { confirmarConsolidado } from './actions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-interface CargoItem {
-    producto_id: string;
-    descripcion: string;
-    cantidad: number;
-    unidad: string;
-    peso_kg: number;
+function DroppableContainer({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
+    const { setNodeRef, isOver } = useDroppable({ id });
+    return (
+        <div ref={setNodeRef} className={`${className} ${isOver ? 'ring-2 ring-primary ring-inset bg-primary/5' : ''}`}>
+            {children}
+        </div>
+    );
 }
 
-interface VehicleCargo {
-    vehiculo_id: string;
-    items: CargoItem[];
+function SortableItem({ id, pedido, onDetail, vehiculos, onManualAssign }: { id: string, pedido: any, onDetail: (p: any) => void, vehiculos?: any[], onManualAssign?: (pId: string, vId: string) => void }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+
+    const pesoTotal = pedido.pedido_items?.reduce((acc: number, it: any) => {
+        if (it.unidad_medida === 'KG') return acc + (Number(it.cantidad) || 0);
+        return acc;
+    }, 0) || 0;
+
+    return (
+        <div ref={setNodeRef} style={style} {...attributes} {...listeners}
+            className={`group bg-white p-3 rounded-lg border-2 shadow-sm cursor-grab active:cursor-grabbing transition-all hover:border-primary/50 hover:shadow-md ${isDragging ? 'border-primary shadow-lg scale-105 z-50' : 'border-gray-100'}`}>
+            <div className="flex justify-between items-start mb-2">
+                <div className="flex items-center gap-2">
+                    <div className="bg-gray-100 p-1.5 rounded-md text-gray-500">
+                        <Package className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-bold text-sm text-gray-700">{pedido.numero}</span>
+                </div>
+                <Badge variant={pedido.estado === 'urgente' ? 'destructive' : 'secondary'} className="text-[9px] px-1.5 py-0">
+                    {pedido.estado === 'urgente' ? 'URGENTE' : 'Normal'}
+                </Badge>
+            </div>
+
+            <p className="text-sm font-semibold text-gray-900 line-clamp-1 mb-1">{pedido.clientes?.razon_social || 'Cliente'}</p>
+
+            <div className="flex items-center text-[11px] text-gray-500 gap-1.5 mb-2">
+                <MapPin className="w-3 h-3 text-gray-400" />
+                <span className="line-clamp-1">{pedido.clientes?.distrito} · {pedido.clientes?.direccion}</span>
+            </div>
+
+            <div className="bg-gray-50/80 rounded-md p-2 mb-3">
+                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Items principales:</p>
+                <div className="space-y-1">
+                    {pedido.pedido_items?.slice(0, 3).map((it: any, i: number) => (
+                        <div key={i} className="flex justify-between text-[11px] text-gray-600">
+                            <span className="line-clamp-1">• {it.productos?.descripcion}</span>
+                            <span className="font-medium">{it.cantidad} {it.unidad_medida}</span>
+                        </div>
+                    ))}
+                    {(pedido.pedido_items?.length || 0) > 3 && (
+                        <p className="text-[10px] text-primary font-medium mt-1">+{pedido.pedido_items.length - 3} productos más...</p>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-50">
+                <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-gray-700">
+                        <Scale className="w-3 h-3 text-amber-500" /> {pesoTotal.toFixed(1)} KG
+                    </span>
+                </div>
+                <div className="flex gap-1" onPointerDown={e => e.stopPropagation()}>
+                    {vehiculos && onManualAssign && (
+                        <Select onValueChange={(vId: string | null) => vId && onManualAssign && onManualAssign(pedido.id as string, vId)}>
+                            <SelectTrigger className="h-6 w-24 text-[9px] font-bold bg-white">
+                                <SelectValue placeholder="Asignar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {vehiculos.map(v => (
+                                    <SelectItem key={v.id} value={v.id} className="text-[10px] font-bold">
+                                        {v.placa} ({v.chofer_nombre})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-400 hover:text-primary rounded-full" onClick={(e) => { e.stopPropagation(); onDetail(pedido); }}>
+                        <ChevronRight className="w-4 h-4" />
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const handleManualAssign = (pedidoId: string, vehiculoId: string, pedidosPendientes: any[], vehiculos: any[], setPedidosPendientes: any, setVehiculos: any) => {
+    const movedPedido = pedidosPendientes.find(p => p.id === pedidoId);
+    if (!movedPedido) return;
+
+    setPedidosPendientes((prev: any[]) => prev.filter(p => p.id !== pedidoId));
+    setVehiculos((prev: any[]) => prev.map((v: any) => v.id === vehiculoId ? { ...v, consolidado: [...v.consolidado, movedPedido] } : v));
+    toast.success("Pedido asignado correctamente");
+};
+
+// ─── Direct Cargo Modal ───────────────────────────────────────────────────────
+function DirectCargoModal({ vehiculo, productos, onClose, vehiculos, setVehiculos }: {
+    vehiculo: any, productos: any[], onClose: () => void,
+    vehiculos: any[], setVehiculos: any
+}) {
+    const [selectedProductId, setSelectedProductId] = useState<string | null>('');
+    const [cantidad, setCantidad] = useState('');
+
+    const addDirectItem = () => {
+        if (!selectedProductId || !cantidad || Number(cantidad) <= 0) {
+            toast.error('Selecciona producto y cantidad válida');
+            return;
+        }
+        const prod = productos.find(p => p.id === selectedProductId);
+        if (!prod) return;
+
+        const fakeItem = {
+            id: `direct-${Date.now()}`,
+            producto_id: prod.id,
+            productos: { descripcion: prod.descripcion },
+            cantidad: Number(cantidad),
+            unidad_medida: prod.unidad_medida || 'UND',
+            precio_unitario: 0,
+            tipo_carga: 'directo'
+        };
+
+        // Create a pseudo-pedido for this product
+        const pseudoPedido = {
+            id: `cargo-${Date.now()}-${prod.id}`,
+            numero: `CARGA`,
+            estado: 'normal',
+            clientes: { razon_social: `[Carga Directa] ${prod.descripcion}`, distrito: '', direccion: '' },
+            total: 0,
+            pedido_items: [fakeItem]
+        };
+
+        setVehiculos((prev: any[]) => prev.map((v: any) =>
+            v.id === vehiculo.id ? { ...v, consolidado: [...v.consolidado, pseudoPedido] } : v
+        ));
+        toast.success(`${prod.descripcion} agregado a ${vehiculo.placa}`);
+        setCantidad('');
+        setSelectedProductId('');
+    };
+
+    return (
+        <Dialog open onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-[480px] border-t-8 border-primary">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-xl font-black">
+                        <Plus className="w-5 h-5 text-primary" /> Agregar Carga Directa
+                    </DialogTitle>
+                    <DialogDescription>Vehículo: <strong>{vehiculo.placa}</strong> · {vehiculo.chofer_nombre}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                    <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-gray-500">Producto</Label>
+                        <Select value={selectedProductId || ''} onValueChange={(v) => v && setSelectedProductId(v)}>
+                            <SelectTrigger className="h-11">
+                                <SelectValue placeholder="Seleccionar producto..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                                {productos.map(p => (
+                                    <SelectItem key={p.id} value={p.id} className="text-sm">
+                                        {p.descripcion} ({p.unidad_medida})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-gray-500">Cantidad</Label>
+                        <Input
+                            type="number" min="0.1" step="0.5" placeholder="0"
+                            className="h-11" value={cantidad}
+                            onChange={e => setCantidad(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') addDirectItem(); }}
+                        />
+                    </div>
+                    <Button className="w-full h-11 font-black text-sm" onClick={addDirectItem}>
+                        <Plus className="w-4 h-4 mr-2" /> Agregar al Vehículo
+                    </Button>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" className="border-2 font-bold" onClick={onClose}>Cerrar</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 export default function DespachoPage() {
     const queryClient = useQueryClient();
 
-    // Track cargo per vehicle: vehiculo_id -> CargoItem[]
-    const [cargas, setCargas] = useState<Record<string, CargoItem[]>>({});
-    const [expandedVehicle, setExpandedVehicle] = useState<string | null>(null);
-    const [selectedVehicleForPrint, setSelectedVehicleForPrint] = useState<any>(null);
-    const [isPrintOpen, setIsPrintOpen] = useState(false);
+    const [pedidosPendientes, setPedidosPendientes] = useState<any[]>([]);
+    const [vehiculos, setVehiculos] = useState<any[]>([]);
+    const [selectedVehiculo, setSelectedVehiculo] = useState<any>(null);
+    const [isPickingListOpen, setIsPickingListOpen] = useState(false);
+    const [selectedPedido, setSelectedPedido] = useState<any>(null);
+    const [isPedidoModalOpen, setIsPedidoModalOpen] = useState(false);
+    const [activeId, setActiveId] = useState<string | null>(null);
+    const [directCargoVehicle, setDirectCargoVehicle] = useState<any>(null);
 
-    // Per-vehicle product selector state
-    const [addingTo, setAddingTo] = useState<string | null>(null);
-    const [selectedProductId, setSelectedProductId] = useState<string | null>('');
-    const [cantidad, setCantidad] = useState('');
-
-    // DB Queries
-    const { data: vehiculos, isLoading: loadingVehiculos } = useQuery({
+    const { isLoading: isLoadingVehiculos } = useQuery({
         queryKey: ['vehiculos-despacho'],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('vehiculos')
-                .select('*, usuarios!chofer_id(nombres, apellidos)')
-                .eq('activo', true);
-            return (data || []).map(v => ({
+            const { data } = await supabase.from('vehiculos').select('*, usuarios!chofer_id(nombres, apellidos)').eq('activo', true);
+            const formatted = (data || []).map(v => ({
                 ...v,
                 chofer_nombre: v.usuarios ? `${v.usuarios.nombres} ${v.usuarios.apellidos}` : 'Sin Asignar',
+                carga_actual: 0,
+                consolidado: []
             }));
+            setVehiculos(formatted);
+            return formatted;
         }
     });
 
-    const { data: productos, isLoading: loadingProductos } = useQuery({
+    const { isLoading: isLoadingPedidos } = useQuery({
+        queryKey: ['pedidos-pendientes'],
+        queryFn: async () => {
+            const { data } = await supabase.from('pedidos')
+                .select('*, clientes(razon_social, distrito, direccion), pedido_items(*, productos(descripcion, unidad_medida))')
+                .in('estado', ['pendiente', 'confirmado', 'aprobado']);
+            setPedidosPendientes(data || []);
+            return data;
+        }
+    });
+
+    const { data: productos } = useQuery({
         queryKey: ['productos-despacho'],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('productos')
-                .select('id, descripcion, unidad_medida, peso_kg')
-                .eq('activo', true)
-                .order('descripcion');
+            const { data } = await supabase.from('productos').select('id, descripcion, unidad_medida, peso_kg').eq('activo', true).order('descripcion');
             return data || [];
         }
     });
 
-    // Helper: get cargo for a vehicle
-    const getCarga = (vehiculoId: string): CargoItem[] => cargas[vehiculoId] || [];
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
 
-    const pesoTotal = (vehiculoId: string) =>
-        getCarga(vehiculoId).reduce((acc, i) => acc + (i.peso_kg * i.cantidad), 0);
+    const handleDragStart = (event: DragStartEvent) => { setActiveId(event.active.id as string); };
 
-    // Add product to vehicle
-    const addItem = (vehiculoId: string) => {
-        if (!selectedProductId || !cantidad || Number(cantidad) <= 0) {
-            toast.error('Selecciona un producto y cantidad válida');
-            return;
-        }
-        const prod = productos?.find(p => p.id === selectedProductId);
-        if (!prod) return;
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        setActiveId(null);
+        if (!over) return;
 
-        setCargas(prev => {
-            const existing = prev[vehiculoId] || [];
-            const idx = existing.findIndex(i => i.producto_id === selectedProductId);
-            if (idx >= 0) {
-                // Add quantity to existing
-                const updated = [...existing];
-                updated[idx] = { ...updated[idx], cantidad: updated[idx].cantidad + Number(cantidad) };
-                return { ...prev, [vehiculoId]: updated };
+        const activeId = active.id as string;
+        const overId = over.id as string;
+
+        let movedPedido = pedidosPendientes.find(p => p.id === activeId);
+        let source = 'pendientes';
+
+        if (!movedPedido) {
+            for (const v of vehiculos) {
+                const found = v.consolidado.find((p: any) => p.id === activeId);
+                if (found) { movedPedido = found; source = v.id; break; }
             }
-            return {
-                ...prev,
-                [vehiculoId]: [...existing, {
-                    producto_id: prod.id,
-                    descripcion: prod.descripcion,
-                    cantidad: Number(cantidad),
-                    unidad: prod.unidad_medida || 'UND',
-                    peso_kg: prod.peso_kg || 0
-                }]
-            };
-        });
-        setCantidad('');
-        setSelectedProductId('');
-        toast.success(`${prod.descripcion} agregado al vehículo`);
+        }
+
+        if (!movedPedido) return;
+
+        let target = '';
+        if (overId === 'pendientes') {
+            target = 'pendientes';
+        } else {
+            const vTarget = vehiculos.find(v => v.id === overId || v.consolidado.find((p: any) => p.id === overId));
+            if (vTarget) target = vTarget.id;
+        }
+
+        if (!target || source === target) return;
+
+        if (source === 'pendientes') {
+            setPedidosPendientes(prev => prev.filter(p => p.id !== activeId));
+        } else {
+            setVehiculos(prev => prev.map(v => v.id === source ? { ...v, consolidado: v.consolidado.filter((p: any) => p.id !== activeId) } : v));
+        }
+
+        if (target === 'pendientes') {
+            setPedidosPendientes(prev => [...prev, movedPedido]);
+        } else {
+            setVehiculos(prev => prev.map(v => v.id === target ? { ...v, consolidado: [...v.consolidado, movedPedido] } : v));
+        }
     };
 
-    // Remove item from vehicle
-    const removeItem = (vehiculoId: string, productoId: string) => {
-        setCargas(prev => ({
-            ...prev,
-            [vehiculoId]: (prev[vehiculoId] || []).filter(i => i.producto_id !== productoId)
-        }));
-    };
-
-    // Clear vehicle cargo
-    const clearCarga = (vehiculoId: string) => {
-        setCargas(prev => ({ ...prev, [vehiculoId]: [] }));
-        toast.info('Carga vaciada');
-    };
-
-    // Confirm dispatch (deduct stock)
     const confirmMutation = useMutation({
         mutationFn: async (vehiculoId: string) => {
-            const items = getCarga(vehiculoId);
-            if (items.length === 0) throw new Error('Agrega productos primero');
+            const vehiculo = vehiculos.find(v => v.id === vehiculoId);
+            if (!vehiculo || vehiculo.consolidado.length === 0) throw new Error("No hay pedidos para este vehículo");
 
-            // Get empresa_id
-            const { data: { user } } = await supabase.auth.getUser();
-            const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user!.id).single();
+            const result = await confirmarConsolidado({
+                vehiculoId: vehiculo.id,
+                choferId: vehiculo.chofer_id,
+                pedidosIds: vehiculo.consolidado.filter((p: any) => !p.id.startsWith('cargo-')).map((p: any) => p.id)
+            });
 
-            // Deduct stock for each product
-            for (const item of items) {
-                const { data: stock } = await supabase
-                    .from('stock')
-                    .select('id, cantidad')
-                    .eq('producto_id', item.producto_id)
-                    .limit(1)
-                    .maybeSingle();
-
-                if (stock) {
-                    const nuevo = stock.cantidad - item.cantidad;
-                    await supabase.from('stock').update({ cantidad: nuevo }).eq('id', stock.id);
-                    await supabase.from('stock_movimientos').insert({
-                        empresa_id: usr?.empresa_id,
-                        producto_id: item.producto_id,
-                        tipo: 'salida',
-                        motivo: 'despacho_vehiculo',
-                        cantidad: item.cantidad,
-                        referencia_tipo: 'despacho',
-                        saldo_anterior: stock.cantidad,
-                        saldo_posterior: nuevo,
-                        usuario_id: user!.id,
-                        fecha: new Date().toISOString()
-                    });
-                }
-            }
-            return vehiculoId;
+            if (!result.success) throw new Error(result.error);
+            return result;
         },
-        onSuccess: (vehiculoId) => {
-            clearCarga(vehiculoId);
-            queryClient.invalidateQueries({ queryKey: ['inventario'] });
-            toast.success('¡Despacho confirmado! Stock descontado correctamente.');
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ['pedidos-pendientes'] });
+            toast.success(`Consolidado ${data.numero} generado exitosamente!`);
+            setVehiculos(prev => prev.map(v => v.id === data.vehiculoId ? { ...v, consolidado: [] } : v));
         },
-        onError: (e: any) => toast.error('Error: ' + e.message)
+        onError: (error: any) => { toast.error("Error: " + error.message); }
     });
 
-    const today = new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const totalPendientesPeso = calcularPesoTotal(pedidosPendientes);
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border shadow-sm">
+        <div className="h-full flex flex-col space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl border shadow-sm shrink-0">
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
-                        <Truck className="w-8 h-8 text-blue-600" /> Gestión de Carga de Vehículos
+                        <Truck className="w-8 h-8 text-primary" /> Logística de Despacho
                     </h1>
-                    <p className="text-gray-500 mt-1 text-sm capitalize">{today}</p>
+                    <p className="text-gray-500 mt-1 flex items-center gap-2">
+                        <Calendar className="w-4 h-4" /> {new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
                 </div>
-                <div className="flex gap-4 text-center bg-gray-50 p-3 rounded-xl">
-                    <div className="px-4 border-r">
-                        <p className="text-[10px] uppercase font-bold text-gray-400">Vehículos</p>
-                        <p className="text-2xl font-black text-gray-800">{vehiculos?.length || 0}</p>
+                <div className="flex bg-gray-100 p-1 rounded-lg">
+                    <div className="px-4 py-2 text-center border-r border-gray-200">
+                        <p className="text-[10px] uppercase font-bold text-gray-400">Pendientes</p>
+                        <p className="text-xl font-black text-gray-800">{pedidosPendientes.length}</p>
                     </div>
-                    <div className="px-4">
-                        <p className="text-[10px] uppercase font-bold text-gray-400">Con Carga</p>
-                        <p className="text-2xl font-black text-blue-600">
-                            {vehiculos?.filter(v => getCarga(v.id).length > 0).length || 0}
-                        </p>
+                    <div className="px-4 py-2 text-center">
+                        <p className="text-[10px] uppercase font-bold text-gray-400">Peso Total</p>
+                        <p className="text-xl font-black text-primary">{totalPendientesPeso.toFixed(1)} <span className="text-xs">KG</span></p>
                     </div>
                 </div>
             </div>
 
-            {/* How to use */}
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
-                <Zap className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
-                <div className="text-sm text-blue-800">
-                    <strong>Cómo usar:</strong> Expande un vehículo → Selecciona un producto → Ingresa la cantidad → Agrega.
-                    Repite para todos los productos. Cuando termines, presiona <strong>"Confirmar Despacho"</strong> para descontar del inventario.
-                </div>
-            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                <div className="flex flex-1 gap-6 min-h-0 overflow-hidden">
 
-            {/* Vehicles */}
-            {loadingVehiculos ? (
-                <div className="text-center py-20 text-gray-400 font-medium">Cargando vehículos...</div>
-            ) : (vehiculos || []).map(vehiculo => {
-                const items = getCarga(vehiculo.id);
-                const peso = pesoTotal(vehiculo.id);
-                const capacidad = vehiculo.capacidad_kg || 5000;
-                const pct = Math.min((peso / capacidad) * 100, 100);
-                const isExpanded = expandedVehicle === vehiculo.id;
-                const isOverloaded = peso > capacidad;
-
-                return (
-                    <Card key={vehiculo.id} className={`border-2 transition-all rounded-2xl overflow-hidden ${items.length > 0 ? 'border-blue-300 shadow-lg shadow-blue-100' : 'border-gray-200'}`}>
-                        {/* Vehicle Header - Always visible */}
-                        <div
-                            className="flex items-center justify-between p-5 cursor-pointer hover:bg-gray-50 transition-colors"
-                            onClick={() => setExpandedVehicle(isExpanded ? null : vehiculo.id)}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className={`p-3 rounded-xl ${items.length > 0 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                                    <Truck className="w-6 h-6" />
+                    {/* Columna Pendientes */}
+                    <SortableContext id="pendientes" items={pedidosPendientes.map(p => p.id)} strategy={verticalListSortingStrategy}>
+                        <Card className="w-[380px] flex flex-col bg-gray-50/50 border-2 border-dashed shrink-0 overflow-hidden">
+                            <CardHeader className="py-4 border-b bg-white">
+                                <CardTitle className="text-lg flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <Package className="w-5 h-5 text-gray-500" />
+                                        <span>Bandeja de Pedidos</span>
+                                    </div>
+                                    <Badge variant="outline" className="bg-gray-100">{pedidosPendientes.length}</Badge>
+                                </CardTitle>
+                                <div className="relative mt-2">
+                                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <Input placeholder="Buscar por número o cliente..." className="h-9 pl-8 text-sm bg-white" />
                                 </div>
-                                <div>
-                                    <h2 className="font-black text-xl text-gray-900">{vehiculo.placa}</h2>
-                                    <p className="text-xs text-gray-400 uppercase tracking-wide">{vehiculo.marca} {vehiculo.modelo} · Chofer: {vehiculo.chofer_nombre}</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                {items.length > 0 && (
-                                    <div className="text-right hidden sm:block">
-                                        <p className={`text-sm font-black ${isOverloaded ? 'text-red-600' : 'text-blue-600'}`}>
-                                            {peso.toFixed(1)} / {capacidad} KG
-                                        </p>
-                                        <p className="text-[10px] text-gray-400 uppercase">{items.length} producto(s)</p>
-                                    </div>
-                                )}
-                                <Badge className={`${items.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'} font-black text-xs border-none`}>
-                                    {items.length > 0 ? `${items.length} items` : 'VACÍO'}
-                                </Badge>
-                                {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                            </div>
-                        </div>
-
-                        {isExpanded && (
-                            <div className="border-t">
-                                {/* Capacity bar */}
-                                {items.length > 0 && (
-                                    <div className="px-5 py-3 bg-gray-50 border-b">
-                                        <div className="flex justify-between text-xs font-bold mb-1">
-                                            <span className="text-gray-500">Capacidad Utilizada</span>
-                                            <span className={isOverloaded ? 'text-red-600 animate-pulse' : 'text-blue-600'}>
-                                                {peso.toFixed(1)} KG / {capacidad} KG ({pct.toFixed(0)}%)
-                                            </span>
-                                        </div>
-                                        <Progress value={pct} className={`h-2 ${isOverloaded ? 'bg-red-100' : ''}`} />
-                                        {isOverloaded && (
-                                            <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-1">
-                                                <AlertTriangle className="w-3 h-3" /> Excede capacidad del vehículo
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="p-5 space-y-5">
-                                    {/* Add Product Form */}
-                                    <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
-                                        <p className="text-xs font-black text-blue-800 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                            <Plus className="w-4 h-4" /> Agregar Producto a este Vehículo
-                                        </p>
-                                        <div className="flex flex-col sm:flex-row gap-3">
-                                            <div className="flex-1">
-                                                <Label className="text-[10px] font-black text-gray-500 uppercase">Producto</Label>
-                                                <Select
-                                                    value={addingTo === vehiculo.id ? selectedProductId : ''}
-                                                    onValueChange={(v) => {
-                                                        setAddingTo(vehiculo.id);
-                                                        setSelectedProductId(v);
-                                                    }}
-                                                >
-                                                    <SelectTrigger className="mt-1 h-10 bg-white border-blue-200 text-sm">
-                                                        <SelectValue placeholder="Seleccionar producto..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="max-h-60">
-                                                        {loadingProductos ? (
-                                                            <SelectItem value="_loading" disabled>Cargando...</SelectItem>
-                                                        ) : (productos || []).map(p => (
-                                                            <SelectItem key={p.id} value={p.id} className="text-sm">
-                                                                {p.descripcion} ({p.unidad_medida})
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="w-32">
-                                                <Label className="text-[10px] font-black text-gray-500 uppercase">Cantidad</Label>
-                                                <Input
-                                                    type="number"
-                                                    min="0.1"
-                                                    step="0.5"
-                                                    placeholder="0"
-                                                    className="mt-1 h-10 bg-white border-blue-200"
-                                                    value={addingTo === vehiculo.id ? cantidad : ''}
-                                                    onChange={(e) => {
-                                                        setAddingTo(vehiculo.id);
-                                                        setCantidad(e.target.value);
-                                                    }}
-                                                    onKeyDown={(e) => { if (e.key === 'Enter') addItem(vehiculo.id); }}
-                                                />
-                                            </div>
-                                            <div className="flex items-end">
-                                                <Button
-                                                    className="h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase rounded-xl"
-                                                    onClick={() => {
-                                                        setAddingTo(vehiculo.id);
-                                                        addItem(vehiculo.id);
-                                                    }}
-                                                >
-                                                    <Plus className="w-4 h-4 mr-1" /> Agregar
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Current Cargo */}
-                                    {items.length > 0 ? (
-                                        <div>
-                                            <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                                <Package className="w-4 h-4" /> Carga Actual del Vehículo
-                                            </p>
-                                            <div className="border rounded-xl overflow-hidden bg-white">
-                                                <Table>
-                                                    <TableHeader className="bg-gray-50">
-                                                        <TableRow>
-                                                            <TableHead className="font-black text-xs">Producto</TableHead>
-                                                            <TableHead className="text-right font-black text-xs">Cantidad</TableHead>
-                                                            <TableHead className="text-right font-black text-xs">Peso Est.</TableHead>
-                                                            <TableHead className="w-10"></TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {items.map(item => (
-                                                            <TableRow key={item.producto_id}>
-                                                                <TableCell className="font-medium text-sm">{item.descripcion}</TableCell>
-                                                                <TableCell className="text-right">
-                                                                    <Badge variant="outline" className="font-bold border-blue-200 bg-blue-50 text-blue-700">
-                                                                        {item.cantidad} {item.unidad}
-                                                                    </Badge>
-                                                                </TableCell>
-                                                                <TableCell className="text-right text-sm font-medium text-gray-500">
-                                                                    {item.peso_kg > 0 ? `${(item.peso_kg * item.cantidad).toFixed(1)} KG` : '—'}
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className="h-7 w-7 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                                                                        onClick={() => removeItem(vehiculo.id, item.producto_id)}
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                                    </Button>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-
-                                            {/* Action Buttons */}
-                                            <div className="flex gap-3 mt-4">
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex-1 border-2 font-bold text-xs h-10"
-                                                    onClick={() => {
-                                                        const v = vehiculos?.find(vv => vv.id === vehiculo.id);
-                                                        setSelectedVehicleForPrint({ ...v, items, peso });
-                                                        setIsPrintOpen(true);
-                                                    }}
-                                                >
-                                                    <FileText className="w-4 h-4 mr-2 text-blue-600" /> Ver Detalle
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    className="border-2 font-bold text-xs h-10 text-red-500 border-red-200 hover:bg-red-50"
-                                                    onClick={() => clearCarga(vehiculo.id)}
-                                                >
-                                                    <Trash2 className="w-4 h-4 mr-1" /> Vaciar
-                                                </Button>
-                                                <Button
-                                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black text-xs h-10 rounded-xl"
-                                                    disabled={confirmMutation.isPending || isOverloaded}
-                                                    onClick={() => confirmMutation.mutate(vehiculo.id)}
-                                                >
-                                                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                                                    {confirmMutation.isPending ? 'Confirmando...' : 'Confirmar Despacho'}
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-10 text-gray-400 border-2 border-dashed rounded-2xl">
-                                            <Truck className="w-12 h-12 mx-auto mb-3 opacity-10" />
-                                            <p className="font-bold text-sm">Vehículo Vacío</p>
-                                            <p className="text-xs mt-1">Agrega productos usando el formulario de arriba</p>
+                            </CardHeader>
+                            <CardContent className="flex-1 p-4 overflow-y-auto">
+                                <div className="space-y-4 min-h-[200px]">
+                                    {pedidosPendientes.map(pedido => (
+                                        <SortableItem key={pedido.id} id={pedido.id} pedido={pedido}
+                                            vehiculos={vehiculos}
+                                            onManualAssign={(pId, vId) => handleManualAssign(pId, vId, pedidosPendientes, vehiculos, setPedidosPendientes, setVehiculos)}
+                                            onDetail={(p) => { setSelectedPedido(p); setIsPedidoModalOpen(true); }} />
+                                    ))}
+                                    {pedidosPendientes.length === 0 && !isLoadingPedidos && (
+                                        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                                            <CheckCircle2 className="w-12 h-12 mb-3 opacity-20 text-green-500" />
+                                            <p className="font-medium text-sm">¡Todo despachado!</p>
+                                            <p className="text-[11px]">No hay pedidos pendientes hoy.</p>
                                         </div>
                                     )}
                                 </div>
+                            </CardContent>
+                        </Card>
+                    </SortableContext>
+
+                    {/* Vehículos Container */}
+                    <div className="flex-1 flex gap-6 overflow-x-auto pb-4">
+                        {vehiculos.map(vehiculo => {
+                            const pesoVehiculo = calcularPesoTotal(vehiculo.consolidado);
+                            const porcentajeCarga = (pesoVehiculo / (vehiculo.capacidad_kg || 5000)) * 100;
+
+                            return (
+                                <SortableContext key={vehiculo.id} id={vehiculo.id} items={vehiculo.consolidado.map((p: any) => p.id)} strategy={verticalListSortingStrategy}>
+                                    <Card className={`w-[360px] flex flex-col shrink-0 border-2 transition-colors ${vehiculo.consolidado.length > 0 ? 'border-primary/20 shadow-lg shadow-primary/5' : 'border-gray-200'}`}>
+                                        <CardHeader className="py-4 border-b bg-gray-50/50">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-lg ${vehiculo.consolidado.length > 0 ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                                        <Truck className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="font-black text-gray-900 text-lg leading-none">{vehiculo.placa}</h3>
+                                                        <p className="text-[11px] text-gray-500 mt-1 uppercase tracking-wider">{vehiculo.marca} {vehiculo.modelo}</p>
+                                                    </div>
+                                                </div>
+                                                <Badge variant="secondary" className="font-bold">
+                                                    {vehiculo.consolidado.length} Pedidos
+                                                </Badge>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between text-[11px] font-bold">
+                                                    <span className="text-gray-500 uppercase">Capacidad de Carga</span>
+                                                    <span className={`${porcentajeCarga > 100 ? 'text-destructive font-black animate-pulse' : porcentajeCarga > 80 ? 'text-amber-500' : 'text-primary'}`}>
+                                                        {pesoVehiculo.toFixed(1)} / {vehiculo.capacidad_kg || 5000} KG
+                                                    </span>
+                                                </div>
+                                                <Progress value={Math.min(porcentajeCarga, 100)} className={`h-2 ${porcentajeCarga > 100 ? 'bg-red-200' : ''}`} />
+                                                {porcentajeCarga > 100 && (
+                                                    <p className="text-[10px] text-destructive font-bold uppercase mt-1 flex items-center gap-1">
+                                                        <Zap className="w-3 h-3" /> Exceso de capacidad ({(porcentajeCarga - 100).toFixed(0)}%)
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-3 flex items-center gap-2 text-xs text-gray-600 bg-white/50 p-2 rounded border border-dashed">
+                                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                                <span className="font-medium">Chofer:</span> {vehiculo.chofer_nombre}
+                                            </div>
+
+                                            {/* Direct Cargo Button */}
+                                            <Button
+                                                variant="outline"
+                                                className="w-full mt-3 h-8 text-[11px] font-bold border-primary/30 text-primary hover:bg-primary hover:text-white"
+                                                onClick={() => setDirectCargoVehicle(vehiculo)}
+                                            >
+                                                <Plus className="w-3.5 h-3.5 mr-1" /> Agregar Carga Directa
+                                            </Button>
+                                        </CardHeader>
+
+                                        <DroppableContainer id={vehiculo.id} className="flex-1 p-4 bg-gray-50/20 overflow-y-auto">
+                                            <div className="space-y-4 min-h-[150px]">
+                                                {vehiculo.consolidado.length === 0 ? (
+                                                    <div className="h-full border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 py-20 bg-white/40">
+                                                        <Truck className="w-10 h-10 mb-3 opacity-10" />
+                                                        <p className="text-sm font-bold uppercase tracking-widest opacity-30">Carga Vacía</p>
+                                                        <p className="text-[10px] mt-1">Arrastra pedidos o usa "Agregar Carga"</p>
+                                                    </div>
+                                                ) : (
+                                                    vehiculo.consolidado.map((pedido: any) => (
+                                                        <SortableItem key={pedido.id} id={pedido.id} pedido={pedido} onDetail={(p) => {
+                                                            setSelectedPedido(p);
+                                                            setIsPedidoModalOpen(true);
+                                                        }} />
+                                                    ))
+                                                )}
+                                            </div>
+                                        </DroppableContainer>
+
+                                        {vehiculo.consolidado.length > 0 && (
+                                            <div className="p-4 border-t bg-white space-y-2 shrink-0">
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full text-xs font-bold h-9 border-2"
+                                                    onClick={() => { setSelectedVehiculo(vehiculo); setIsPickingListOpen(true); }}
+                                                >
+                                                    <FileText className="w-4 h-4 mr-2 text-primary" />
+                                                    Picking List / Detalle
+                                                </Button>
+                                                <Button
+                                                    className="w-full text-xs font-bold h-9 bg-primary hover:bg-primary/90"
+                                                    disabled={confirmMutation.isPending}
+                                                    onClick={() => confirmMutation.mutate(vehiculo.id)}
+                                                >
+                                                    {confirmMutation.isPending ? 'Confirmando...' : 'Confirmar Salida'}
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </Card>
+                                </SortableContext>
+                            );
+                        })}
+                    </div>
+                </div>
+            </DndContext>
+
+            {/* Direct cargo modal */}
+            {directCargoVehicle && (
+                <DirectCargoModal
+                    vehiculo={directCargoVehicle}
+                    productos={productos || []}
+                    vehiculos={vehiculos}
+                    setVehiculos={setVehiculos}
+                    onClose={() => setDirectCargoVehicle(null)}
+                />
+            )}
+
+            {/* Pedido Detail Modal */}
+            <Dialog open={isPedidoModalOpen} onOpenChange={setIsPedidoModalOpen}>
+                <DialogContent className="sm:max-w-[600px] border-t-8 border-primary">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-black flex items-center gap-2">
+                            Pedido {selectedPedido?.numero}
+                        </DialogTitle>
+                        <DialogDescription className="text-gray-500 font-medium italic">
+                            {selectedPedido?.clientes?.razon_social} · RUC: {selectedPedido?.clientes?.numero_documento}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-4 space-y-6">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-gray-50 p-3 rounded-lg border">
+                                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Dirección de Entrega</p>
+                                <p className="text-sm font-medium flex items-start gap-2">
+                                    <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                                    {selectedPedido?.clientes?.direccion}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1 ml-6">{selectedPedido?.clientes?.distrito}, Lima</p>
+                            </div>
+                            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                <p className="text-[10px] uppercase font-bold text-blue-400 mb-1">Resumen Económico</p>
+                                <div className="flex justify-between items-end">
+                                    <p className="text-2xl font-black text-blue-900">S/ {selectedPedido?.total}</p>
+                                    <Badge className="bg-blue-600">Pendiente</Badge>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <Package className="w-4 h-4" /> Detalle de Productos
+                            </p>
+                            <div className="border rounded-lg overflow-hidden">
+                                <Table>
+                                    <TableHeader className="bg-gray-50">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-gray-600">Producto</TableHead>
+                                            <TableHead className="text-right font-bold text-gray-600">Cant.</TableHead>
+                                            <TableHead className="text-right font-bold text-gray-600">Total</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {selectedPedido?.pedido_items?.map((it: any, idx: number) => (
+                                            <TableRow key={idx}>
+                                                <TableCell className="text-sm font-medium">{it.productos?.descripcion}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Badge variant="outline" className="font-bold border-gray-200">
+                                                        {it.cantidad} {it.unidad_medida}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold text-gray-800">S/ {(it.cantidad * it.precio_unitario).toFixed(2)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+
+                        {selectedPedido?.observaciones && (
+                            <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 text-amber-800 text-sm italic">
+                                <span className="font-bold not-italic">Obs:</span> {selectedPedido.observaciones}
                             </div>
                         )}
-                    </Card>
-                );
-            })}
-
-            {/* Print/Detail Modal */}
-            <Dialog open={isPrintOpen} onOpenChange={setIsPrintOpen}>
-                <DialogContent className="sm:max-w-[600px] border-t-8 border-blue-600">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-black flex items-center gap-2">
-                            <Truck className="w-5 h-5 text-blue-600" />
-                            Guía de Carga — {selectedVehicleForPrint?.placa}
-                        </DialogTitle>
-                        <p className="text-sm text-gray-500">Chofer: {selectedVehicleForPrint?.chofer_nombre} · {today}</p>
-                    </DialogHeader>
-                    <div className="border rounded-xl overflow-hidden">
-                        <Table>
-                            <TableHeader className="bg-gray-50">
-                                <TableRow>
-                                    <TableHead className="font-black">Producto</TableHead>
-                                    <TableHead className="text-right font-black">Cantidad</TableHead>
-                                    <TableHead className="text-right font-black">Peso</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {selectedVehicleForPrint?.items?.map((item: CargoItem) => (
-                                    <TableRow key={item.producto_id}>
-                                        <TableCell className="font-medium">{item.descripcion}</TableCell>
-                                        <TableCell className="text-right font-bold">{item.cantidad} {item.unidad}</TableCell>
-                                        <TableCell className="text-right text-gray-500">
-                                            {item.peso_kg > 0 ? `${(item.peso_kg * item.cantidad).toFixed(1)} KG` : '—'}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                <TableRow className="bg-blue-50 font-black">
-                                    <TableCell className="font-black">TOTAL</TableCell>
-                                    <TableCell></TableCell>
-                                    <TableCell className="text-right font-black text-blue-700">
-                                        {selectedVehicleForPrint?.peso?.toFixed(1)} KG
-                                    </TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
                     </div>
-                    <DialogFooter className="gap-3 mt-4">
-                        <Button variant="outline" className="border-2 font-bold" onClick={() => setIsPrintOpen(false)}>Cerrar</Button>
-                        <Button className="bg-blue-600 text-white font-black" onClick={() => window.print()}>
-                            <FileText className="w-4 h-4 mr-2" /> Imprimir Guía
+                    <DialogFooter>
+                        <Button className="w-full bg-gray-900 hover:bg-black text-white font-bold" onClick={() => setIsPedidoModalOpen(false)}>Cerrar Detalle</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Picking List Modal */}
+            <Dialog open={isPickingListOpen} onOpenChange={setIsPickingListOpen}>
+                <DialogContent className="sm:max-w-[750px] max-h-[90vh] flex flex-col overflow-hidden border-t-8 border-primary">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3 text-2xl font-black">
+                            <div className="bg-primary text-white p-2 rounded-xl">
+                                <FileText className="w-6 h-6" />
+                            </div>
+                            Picking List Consolidado
+                        </DialogTitle>
+                        <DialogDescription className="text-lg font-bold text-primary">
+                            Vehículo: {selectedVehiculo?.placa} · {selectedVehiculo?.chofer_nombre}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto mt-6 space-y-8 pr-2">
+                        <div className="bg-blue-50/40 p-6 rounded-2xl border-2 border-blue-100 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                <Package className="w-24 h-24 text-blue-900" />
+                            </div>
+                            <h3 className="text-xs font-black text-blue-900 mb-4 uppercase tracking-widest flex items-center gap-2">
+                                <Package className="w-4 h-4" /> Resumen de Carga Agrupado
+                            </h3>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="border-blue-200">
+                                        <TableHead className="text-blue-900 font-black">Producto</TableHead>
+                                        <TableHead className="text-right text-blue-900 font-black">Cantidad</TableHead>
+                                        <TableHead className="text-blue-900 font-black">Peso Est.</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {Object.values(selectedVehiculo?.consolidado.reduce((acc: any, ped: any) => {
+                                        ped.pedido_items?.forEach((it: any) => {
+                                            const key = it.producto_id;
+                                            if (!acc[key]) acc[key] = { desc: it.productos?.descripcion, cant: 0, und: it.unidad_medida || it.productos?.unidad_medida, peso: 0 };
+                                            acc[key].cant += Number(it.cantidad);
+                                            if (it.unidad_medida === 'KG') acc[key].peso += Number(it.cantidad);
+                                        });
+                                        return acc;
+                                    }, {}) || {}).map((item: any, idx: number) => (
+                                        <TableRow key={idx} className="border-blue-100 hover:bg-blue-100/50 transition-colors">
+                                            <TableCell className="font-bold text-gray-800">{item.desc}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Badge className="bg-blue-600 text-white font-black px-3">
+                                                    {item.cant.toFixed(1)} {item.und}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right font-medium text-blue-900">
+                                                {item.peso > 0 ? `${item.peso.toFixed(1)} KG` : '-'}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xs font-black text-gray-500 mb-4 uppercase tracking-widest flex items-center gap-2">
+                                <Truck className="w-4 h-4" /> Desglose por Comprobante
+                            </h3>
+                            <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
+                                <Table>
+                                    <TableHeader className="bg-gray-50/80">
+                                        <TableRow>
+                                            <TableHead className="font-black">N° Reg</TableHead>
+                                            <TableHead className="font-black">Cliente</TableHead>
+                                            <TableHead className="font-black">Zona / Distrito</TableHead>
+                                            <TableHead className="text-right font-black">Carga</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {selectedVehiculo?.consolidado.map((p: any) => (
+                                            <TableRow key={p.id}>
+                                                <TableCell className="font-black text-primary">{p.numero}</TableCell>
+                                                <TableCell className="text-xs font-bold">{p.clientes?.razon_social}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="text-[10px] font-bold border-gray-200 bg-gray-50">{p.clientes?.distrito}</Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold text-gray-700">
+                                                    {calcularPesoTotal([p]).toFixed(1)} KG
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="mt-6 pt-6 border-t gap-3">
+                        <Button variant="outline" className="px-8 border-2 font-bold" onClick={() => setIsPickingListOpen(false)}>Cerrar</Button>
+                        <Button className="flex-1 bg-primary hover:bg-primary/90 text-sm font-black h-12 rounded-xl shadow-lg shadow-primary/20" onClick={() => {
+                            toast.success("Imprimiendo Picking List...");
+                            window.print();
+                        }}>
+                            <FileText className="w-5 h-5 mr-3" />
+                            IMPRIMIR GUÍA DE DESPACHO
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
     );
+}
+
+function calcularPesoTotal(peds: any[]) {
+    return peds.reduce((acc, p) => {
+        const pPeso = p.pedido_items?.reduce((pa: number, it: any) => {
+            if (it.unidad_medida === 'KG') return pa + (Number(it.cantidad) || 0);
+            return pa;
+        }, 0) || 0;
+        return acc + pPeso;
+    }, 0);
 }
