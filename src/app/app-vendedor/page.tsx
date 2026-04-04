@@ -16,7 +16,8 @@ import {
     CheckCircle2,
     ShoppingBag,
     XCircle,
-    ArrowUpRight
+    ArrowUpRight,
+    Zap
 } from "lucide-react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { registrarCheckin, registrarCheckout, registrarAsistencia, registrarProspecto } from './actions';
+import { registrarCheckin, registrarCheckout, registrarAsistencia, registrarProspecto, forzarCheckout } from './actions';
 
 export default function AppVendedorDashboard() {
     const queryClient = useQueryClient();
@@ -54,7 +55,28 @@ export default function AppVendedorDashboard() {
         enabled: true
     });
 
-    // 2. Clientes con estado de visita hoy
+    // 2. Attendance Status
+    const { data: attendanceStatus, isLoading: loadingAttendance } = useQuery({
+        queryKey: ['asistencia-hoy'],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+            const today = new Date().toISOString().split('T')[0];
+            const { data } = await supabase
+                .from('tracking_gps')
+                .select('velocidad')
+                .eq('usuario_id', user.id)
+                .in('velocidad', [-1, -2])
+                .order('hora', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            return data?.velocidad === -1 ? 'ingresado' : 'fuera';
+        }
+    });
+
+    const isIngresado = attendanceStatus === 'ingresado';
+
+    // 3. Clientes con estado de visita hoy
     const { data: clientes, isLoading } = useQuery({
         queryKey: ['clientes-vendedor', busqueda],
         queryFn: async () => {
@@ -146,6 +168,7 @@ export default function AppVendedorDashboard() {
             return res;
         },
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['asistencia-hoy'] });
             toast.success('Asistencia registrada correctamente');
             setIsAsistenciaOpen(false);
         },
@@ -190,6 +213,20 @@ export default function AppVendedorDashboard() {
                             </Link>
                             <Button onClick={() => setIsCheckoutOpen(true)} size="sm" className="bg-red-500 hover:bg-red-400 text-white font-black text-[10px] px-3 h-8 rounded-lg uppercase">
                                 <Flag className="w-3 h-3 mr-1" /> Finalizar
+                            </Button>
+                            <Button
+                                onClick={async () => {
+                                    if (confirm('¿Reiniciar sesión de visita?')) {
+                                        const res = await forzarCheckout();
+                                        if (res.success) {
+                                            toast.success('Sesión reiniciada');
+                                            queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
+                                        }
+                                    }
+                                }}
+                                size="icon" variant="ghost" className="h-8 w-8 bg-black/20 hover:bg-black/40 rounded-lg"
+                            >
+                                <Zap className="w-4 h-4 text-white fill-white" />
                             </Button>
                         </div>
                     </div>
@@ -389,15 +426,17 @@ export default function AppVendedorDashboard() {
                     </div>
                     <div className="p-6 grid grid-cols-2 gap-4">
                         <Button
-                            className="h-24 rounded-3xl bg-green-50 text-green-700 border-none flex flex-col gap-2 hover:bg-green-100"
-                            onClick={() => mutationAsistencia.mutate('ingreso')}
+                            className={`h-24 rounded-3xl bg-green-50 text-green-700 border-none flex flex-col gap-2 hover:bg-green-100 ${isIngresado ? 'opacity-50 grayscale' : ''}`}
+                            onClick={() => !isIngresado && mutationAsistencia.mutate('ingreso')}
+                            disabled={mutationAsistencia.isPending || isIngresado}
                         >
                             <ArrowUpRight className="w-6 h-6" />
                             <span className="font-black text-xs">REGISTRAR INGRESO</span>
                         </Button>
                         <Button
-                            className="h-24 rounded-3xl bg-red-50 text-red-700 border-none flex flex-col gap-2 hover:bg-red-100"
-                            onClick={() => mutationAsistencia.mutate('salida')}
+                            className={`h-24 rounded-3xl bg-red-50 text-red-700 border-none flex flex-col gap-2 hover:bg-red-100 ${!isIngresado ? 'opacity-50 grayscale' : ''}`}
+                            onClick={() => isIngresado && mutationAsistencia.mutate('salida')}
+                            disabled={mutationAsistencia.isPending || !isIngresado}
                         >
                             <Flag className="w-6 h-6" />
                             <span className="font-black text-xs">REGISTRAR SALIDA</span>

@@ -116,20 +116,52 @@ export async function registrarProspecto(data: any) {
         if (!usuario) return { error: 'Usuario sin empresa vinculada' };
 
         // Ensure we send valid fields for the DB
-        const { error } = await supabase.from('clientes').insert([{
+        const payload = {
             ...data,
             empresa_id: usuario.empresa_id,
             vendedor_asignado_id: user.id,
             estado: 'activo',
             tipo_cliente: 'prospecto',
             lista_precio: 'B'
-        }]);
+        };
 
-        if (error) throw error;
+        const { error: error1 } = await supabase.from('clientes').insert([payload]);
+
+        if (error1) {
+            console.warn('Falla tipo prospecto, reintentando con tipo otro');
+            const { error: error2 } = await supabase.from('clientes').insert([{
+                ...payload,
+                tipo_cliente: 'otro'
+            }]);
+            if (error2) throw error2;
+        }
+
         revalidatePath('/app-vendedor');
         return { success: true };
     } catch (e: any) {
         console.error('Prospecto Error:', e);
+        return { error: e.message };
+    }
+}
+
+export async function forzarCheckout() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'No autenticado' };
+
+    try {
+        await supabase.from('visitas_gps')
+            .update({
+                hora_checkout: new Date().toISOString(),
+                resultado: 'CANCELADO/FORZADO',
+                observaciones: 'Cierre forzado por el usuario'
+            })
+            .eq('vendedor_id', user.id)
+            .is('hora_checkout', null);
+
+        revalidatePath('/app-vendedor');
+        return { success: true };
+    } catch (e: any) {
         return { error: e.message };
     }
 }

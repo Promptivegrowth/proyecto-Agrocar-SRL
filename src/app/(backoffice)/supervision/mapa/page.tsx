@@ -236,41 +236,42 @@ export default function SupervisionMapaPage() {
                                             }}
                                         />
                                     )}
-                                    {selectedVendId === u.id && u.pos && (
-                                        <InfoWindow
-                                            position={u.pos}
-                                            onCloseClick={() => setSelectedVendId(null)}
-                                            options={{ pixelOffset: new google.maps.Size(0, -20) }}
-                                        >
-                                            <div className="p-3 max-w-xs bg-white rounded-xl">
-                                                <div className="flex items-center gap-3 mb-2 border-b pb-2">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${u.tipo === 'vehiculo' ? 'bg-amber-500' : 'bg-blue-600'}`}>
-                                                        {u.tipo === 'vehiculo' ? <Truck className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-sm text-gray-900 leading-tight uppercase tracking-tighter">{u.nombre}</p>
-                                                        <p className="text-[9px] text-gray-400 font-bold uppercase">{u.subtitulo}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-1.5">
-                                                    <p className="text-[10px] flex justify-between font-medium"><span>Estado:</span> <span className={`text-green-600 font-black uppercase`}>Activo</span></p>
-                                                    <p className="text-[10px] flex justify-between font-medium"><span>Tipo:</span> <span className="font-black uppercase">{u.tipo}</span></p>
-                                                    <p className="text-[10px] flex justify-between font-medium"><span>Sincronizado:</span> <span className="font-mono">{u.lastPing}</span></p>
-                                                </div>
-                                                <Button
-                                                    size="sm"
-                                                    className="w-full mt-3 h-8 bg-slate-900 text-[9px] font-black uppercase tracking-widest rounded-lg"
-                                                    onClick={() => {
-                                                        if (u.pos) map?.panTo(u.pos);
-                                                    }}
-                                                >
-                                                    Centrar Unidad
-                                                </Button>
-                                            </div>
-                                        </InfoWindow>
-                                    )}
                                 </React.Fragment>
                             ))}
+
+                            {selectedUnit?.pos && (
+                                <InfoWindow
+                                    position={selectedUnit.pos}
+                                    onCloseClick={() => setSelectedVendId(null)}
+                                    options={{ pixelOffset: new google.maps.Size(0, -20) }}
+                                >
+                                    <div className="p-3 max-w-xs bg-white rounded-xl">
+                                        <div className="flex items-center gap-3 mb-2 border-b pb-2">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${selectedUnit.tipo === 'vehiculo' ? 'bg-amber-500' : 'bg-blue-600'}`}>
+                                                {selectedUnit.tipo === 'vehiculo' ? <Truck className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-sm text-gray-900 leading-tight uppercase tracking-tighter">{selectedUnit.nombre}</p>
+                                                <p className="text-[9px] text-gray-400 font-bold uppercase">{selectedUnit.subtitulo}</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] flex justify-between font-medium"><span>Estado:</span> <span className={`text-green-600 font-black uppercase`}>Activo</span></p>
+                                            <p className="text-[10px] flex justify-between font-medium"><span>Tipo:</span> <span className="font-black uppercase">{selectedUnit.tipo}</span></p>
+                                            <p className="text-[10px] flex justify-between font-medium"><span>Sincronizado:</span> <span className="font-mono">{selectedUnit.lastPing}</span></p>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            className="w-full mt-3 h-8 bg-slate-900 text-[9px] font-black uppercase tracking-widest rounded-lg"
+                                            onClick={() => {
+                                                if (selectedUnit.pos) map?.panTo(selectedUnit.pos);
+                                            }}
+                                        >
+                                            Centrar Unidad
+                                        </Button>
+                                    </div>
+                                </InfoWindow>
+                            )}
                         </GoogleMap>
                     )}
                 </div>
