@@ -17,6 +17,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { exportToExcel } from '@/lib/exportUtils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -85,7 +86,17 @@ export default function DashboardPage() {
                         variant="outline"
                         size="sm"
                         className="rounded-xl font-bold text-xs uppercase tracking-widest border-2"
-                        onClick={() => toast.success("Generando reporte Excel...", { description: "Se descargará en breve." })}
+                        onClick={() => {
+                            const dataToExport = [
+                                { "Reporte": "Resumen General", "Fecha": new Date().toLocaleDateString() },
+                                { "Concepto": "Ventas de Mes", "Valor": stats?.pedidosTotal },
+                                { "Concepto": "Cobranza Total", "Valor": stats?.pagosTotal },
+                                { "Concepto": "Documentos SUNAT", "Valor": stats?.comprobantesCount },
+                                { "Concepto": "Alertas de Stock", "Valor": stats?.alertas.length }
+                            ];
+                            exportToExcel(dataToExport, "Reporte_Agrocar_Gerencial", "Dashboard");
+                            toast.success("Excel generado con éxito");
+                        }}
                     >
                         Exportar Reporte
                     </Button>

@@ -85,12 +85,19 @@ export default function AppVendedorDashboard() {
             if (!navigator.geolocation) throw new Error('GPS no disponible');
 
             return new Promise((resolve, reject) => {
+                const timeoutId = setTimeout(() => reject(new Error('Tiempo de espera de GPS agotado.')), 8000);
+
                 navigator.geolocation.getCurrentPosition(async (pos) => {
+                    clearTimeout(timeoutId);
                     try {
                         const res = await registrarCheckin(cliente.id, pos.coords.latitude, pos.coords.longitude);
-                        resolve(res);
+                        if (res.error) reject(new Error(res.error));
+                        else resolve(res);
                     } catch (e) { reject(e); }
-                }, (err) => reject(new Error('Debes permitir acceso al GPS para iniciar visita.')), { enableHighAccuracy: true });
+                }, (err) => {
+                    clearTimeout(timeoutId);
+                    reject(new Error('Debes permitir acceso al GPS para iniciar visita.'));
+                }, { enableHighAccuracy: true });
             });
         },
         onSuccess: () => {
@@ -98,7 +105,7 @@ export default function AppVendedorDashboard() {
             queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
             toast.success('Check-in registrado. Visita iniciada.');
         },
-        onError: (err: any) => toast.error(err.message)
+        onError: (err: any) => toast.error(err.message || 'Error al iniciar visita')
     });
 
     const mutationCheckout = useMutation({
@@ -107,43 +114,52 @@ export default function AppVendedorDashboard() {
             return new Promise((resolve, reject) => {
                 navigator.geolocation.getCurrentPosition(async (pos) => {
                     try {
-                        await registrarCheckout(
+                        const res = await registrarCheckout(
                             visitaActiva.id,
                             pos.coords.latitude,
                             pos.coords.longitude,
                             checkoutData.resultado,
                             checkoutData.observaciones
                         );
-                        resolve(true);
+                        if (res.error) reject(new Error(res.error));
+                        else resolve(true);
                     } catch (e) { reject(e); }
                 }, (err) => reject(new Error('Indispensable GPS para finalizar visita.')), { enableHighAccuracy: true });
             });
         },
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
             toast.success('Check-out registrado. Visita finalizada.');
-        }
+        },
+        onError: (err: any) => toast.error(err.message || 'Error al finalizar visita')
     });
 
     const mutationAsistencia = useMutation({
         mutationFn: async (tipo: 'ingreso' | 'salida') => {
-            return registrarAsistencia(tipo);
+            const res = await registrarAsistencia(tipo);
+            if (res.error) throw new Error(res.error);
+            return res;
         },
         onSuccess: () => {
             toast.success('Asistencia registrada correctamente');
             setIsAsistenciaOpen(false);
-        }
+        },
+        onError: (err: any) => toast.error(err.message || 'Error de asistencia')
     });
 
     const mutationProspecto = useMutation({
         mutationFn: async () => {
-            return registrarProspecto(prospectData);
+            const res = await registrarProspecto(prospectData);
+            if (res.error) throw new Error(res.error);
+            return res;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
             setIsDialogOpen(false);
             setProspectData({ razon_social: '', numero_documento: '', direccion: '', telefono: '', tipo_documento: 'DNI' });
             toast.success('Prospecto registrado con éxito');
-        }
+        },
+        onError: (err: any) => toast.error(err.message || 'No se pudo crear el prospecto')
     });
 
     return (
