@@ -55,23 +55,26 @@ export default function AppVendedorDashboard() {
         enabled: true
     });
 
-    // 2. Attendance Status
-    const { data: attendanceStatus, isLoading: loadingAttendance } = useQuery({
+    // 2. Attendance Status (only TODAY's records)
+    const { data: attendanceStatus } = useQuery({
         queryKey: ['asistencia-hoy'],
         queryFn: async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null;
+            if (!user) return 'fuera';
             const today = new Date().toISOString().split('T')[0];
             const { data } = await supabase
                 .from('tracking_gps')
                 .select('velocidad')
                 .eq('usuario_id', user.id)
+                .eq('fecha', today)
                 .in('velocidad', [-1, -2])
                 .order('hora', { ascending: false })
                 .limit(1)
                 .maybeSingle();
+            // If latest today's record is -1 (ingreso), user is in. If -2 or null, user is out.
             return data?.velocidad === -1 ? 'ingresado' : 'fuera';
-        }
+        },
+        refetchInterval: 5000 // Check every 5s so state updates quickly after mutation
     });
 
     const isIngresado = attendanceStatus === 'ingresado';

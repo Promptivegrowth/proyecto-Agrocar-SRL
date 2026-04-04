@@ -115,7 +115,7 @@ export async function registrarProspecto(data: any) {
         const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', user.id).single();
         if (!usuario) return { error: 'Usuario sin empresa vinculada' };
 
-        // Ensure we send valid fields for the DB
+        // Ensure valid fields for the DB
         const payload = {
             ...data,
             empresa_id: usuario.empresa_id,
@@ -125,16 +125,8 @@ export async function registrarProspecto(data: any) {
             lista_precio: 'B'
         };
 
-        const { error: error1 } = await supabase.from('clientes').insert([payload]);
-
-        if (error1) {
-            console.warn('Falla tipo prospecto, reintentando con tipo otro');
-            const { error: error2 } = await supabase.from('clientes').insert([{
-                ...payload,
-                tipo_cliente: 'otro'
-            }]);
-            if (error2) throw error2;
-        }
+        const { error } = await supabase.from('clientes').insert([payload]);
+        if (error) throw error;
 
         revalidatePath('/app-vendedor');
         return { success: true };
