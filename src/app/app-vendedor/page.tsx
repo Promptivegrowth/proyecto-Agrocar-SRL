@@ -1,101 +1,182 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Plus, PackageOpen, DollarSign, Search, UserPlus } from "lucide-react";
+import {
+    MapPin,
+    Plus,
+    PackageOpen,
+    DollarSign,
+    Search,
+    UserPlus,
+    Timer,
+    Flag,
+    CheckCircle2,
+    ShoppingBag,
+    XCircle
+} from "lucide-react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { registrarCheckin, registrarCheckout } from './actions';
 
 export default function AppVendedorDashboard() {
     const queryClient = useQueryClient();
     const [busqueda, setBusqueda] = useState('');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+    const [checkoutData, setCheckoutData] = useState({ resultado: 'pedido_tomado', observaciones: '' });
 
-    const { data: clientes, isLoading } = useQuery({
-        queryKey: ['clientes-vendedor', busqueda],
+    // 1. Visita Activa
+    const { data: visitaActiva, isLoading: loadingVisita } = useQuery({
+        queryKey: ['visita-activa'],
         queryFn: async () => {
-            let q = supabase.from('clientes').select('id, razon_social, estado, limite_credito');
-            if (busqueda) q = q.ilike('razon_social', `%${busqueda}%`);
-            const { data, error } = await q.limit(20);
-            if (error) throw error;
+            const userRes = await supabase.auth.getUser();
+            const { data } = await supabase
+                .from('visitas_gps')
+                .select('*, clientes(razon_social)')
+                .eq('vendedor_id', userRes.data.user?.id)
+                .is('hora_checkout', null)
+                .maybeSingle();
             return data;
         }
     });
 
-    const mutationCreate = useMutation({
-        mutationFn: async (cliente: any) => {
-            const userRes = await supabase.auth.getUser();
-            const { data: usuario } = await supabase.from('usuarios').select('empresa_id, id').eq('id', userRes.data.user?.id).single();
-            const payload = {
-                ...cliente,
-                empresa_id: usuario?.empresa_id,
-                vendedor_asignado_id: usuario?.id,
-                tipo_documento: 'RUC', // Preset for speed in mobile
-                estado: 'activo'
-            };
-            const { error } = await supabase.from('clientes').insert([payload]);
+    // 2. Clientes con estado de visita hoy
+    const { data: clientes, isLoading } = useQuery({
+        queryKey: ['clientes-vendedor', busqueda],
+        queryFn: async () => {
+            const { data: cls, error } = await supabase
+                .from('clientes')
+                .select('id, razon_social, estado, limite_credito, latitud, longitud')
+                .ilike('razon_social', `%${busqueda}%`)
+                .limit(30);
+
             if (error) throw error;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
-            setIsDialogOpen(false);
+
+            // Ver visitas de hoy para estos clientes
+            const { data: vs } = await supabase
+                .from('visitas_gps')
+                .select('cliente_id, resultado')
+                .eq('fecha', new Date().toISOString().split('T')[0]);
+
+            return cls.map(c => ({
+                ...c,
+                visitado: vs?.some(v => v.cliente_id === c.id),
+                resultado_hoy: vs?.find(v => v.cliente_id === c.id)?.resultado
+            }));
         }
     });
 
-    const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        mutationCreate.mutate({
-            numero_documento: fd.get('numero_documento'),
-            razon_social: fd.get('razon_social'),
-            telefono: fd.get('telefono'),
-            direccion: fd.get('direccion'),
-        });
-    };
+    const mutationCheckin = useMutation({
+        mutationFn: async (cliente: any) => {
+            if (!navigator.geolocation) throw new Error('GPS no disponible');
+
+            return new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    try {
+                        const res = await registrarCheckin(cliente.id, pos.coords.latitude, pos.coords.longitude);
+                        resolve(res);
+                    } catch (e) { reject(e); }
+                }, (err) => reject(new Error('Debes permitir acceso al GPS para iniciar visita.')), { enableHighAccuracy: true });
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
+            queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
+            toast.success('Check-in registrado. Visita iniciada.');
+        },
+        onError: (err: any) => toast.error(err.message)
+    });
+
+    const mutationCheckout = useMutation({
+        mutationFn: async () => {
+            if (!visitaActiva) return;
+            return new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(async (pos) => {
+                    try {
+                        await registrarCheckout(
+                            visitaActiva.id,
+                            pos.coords.latitude,
+                            pos.coords.longitude,
+                            checkoutData.resultado,
+                            checkoutData.observaciones
+                        );
+                        resolve(true);
+                    } catch (e) { reject(e); }
+                }, (err) => reject(new Error('Indispensable GPS para finalizar visita.')), { enableHighAccuracy: true });
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['visita-activa'] });
+            queryClient.invalidateQueries({ queryKey: ['clientes-vendedor'] });
+            setIsCheckoutOpen(false);
+            toast.success('Check-out registrado. Visita finalizada.');
+        }
+    });
 
     return (
-        <div className="flex-1 bg-[#F8FAFC] flex flex-col relative pb-24 font-sans">
+        <div className="flex-1 bg-slate-50 flex flex-col relative pb-32 font-sans overflow-hidden">
+            {/* Active Visit Banner */}
+            {visitaActiva && (
+                <div className="bg-blue-600 p-4 text-white flex items-center justify-between sticky top-0 z-50 shadow-lg animate-in slide-in-from-top duration-500">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-white/20 p-2 rounded-xl animate-pulse">
+                            <Timer className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Visita Activa</p>
+                            <p className="font-bold text-sm line-clamp-1">{visitaActiva.clientes?.razon_social}</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <Link href={`/app-vendedor/pedido/${visitaActiva.cliente_id}`}>
+                            <Button size="sm" variant="secondary" className="bg-white text-blue-700 font-black text-[10px] px-3 h-8 rounded-lg uppercase">
+                                <ShoppingBag className="w-3 h-3 mr-1" /> Pedido
+                            </Button>
+                        </Link>
+                        <Button onClick={() => setIsCheckoutOpen(true)} size="sm" className="bg-red-500 hover:bg-red-400 text-white font-black text-[10px] px-3 h-8 rounded-lg uppercase">
+                            <Flag className="w-3 h-3 mr-1" /> Finalizar
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             {/* Header Stats */}
             <div className="p-4 grid grid-cols-2 gap-4">
-                <Card className="shadow-sm border-none bg-white rounded-3xl overflow-hidden">
-                    <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
-                            <PackageOpen className="w-6 h-6 text-blue-600" />
+                <Card className="shadow-sm border-none bg-white rounded-[2rem] overflow-hidden">
+                    <CardContent className="p-5 flex flex-col items-center justify-center text-center">
+                        <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center mb-2">
+                            <PackageOpen className="w-5 h-5 text-blue-600" />
                         </div>
-                        <span className="text-2xl font-black text-slate-800 tracking-tight">0</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Pedidos Hoy</span>
+                        <span className="text-xl font-black text-slate-800 tracking-tight">0</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Pedidos Hoy</span>
                     </CardContent>
                 </Card>
-                <Card className="shadow-sm border-none bg-white rounded-3xl overflow-hidden">
-                    <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center mb-3">
-                            <DollarSign className="w-6 h-6 text-green-600" />
+                <Card className="shadow-sm border-none bg-white rounded-[2rem] overflow-hidden">
+                    <CardContent className="p-5 flex flex-col items-center justify-center text-center">
+                        <div className="w-10 h-10 bg-green-50 rounded-2xl flex items-center justify-center mb-2">
+                            <DollarSign className="w-5 h-5 text-green-600" />
                         </div>
-                        <span className="text-2xl font-black text-green-700 tracking-tight">S/ 0</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Vendido</span>
+                        <span className="text-xl font-black text-green-700 tracking-tight">S/ 0</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Venta Total</span>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Search & Title */}
-            <div className="px-4 pb-4 sticky top-0 z-10 bg-[#F8FAFC]/80 backdrop-blur-md">
-                <div className="flex items-center justify-between mb-4 mt-2">
-                    <h2 className="text-xl font-black text-slate-800 tracking-tight italic uppercase">Ruta de Hoy</h2>
-                    <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold rounded-lg px-3 py-1">
-                        {clientes?.length || 0} clientes
-                    </Badge>
-                </div>
+            {/* Search */}
+            <div className="px-5 pb-4">
                 <div className="relative group">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                     <Input
-                        placeholder="Buscar cliente..."
-                        className="bg-white border-none shadow-sm rounded-2xl h-12 pl-12 focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium"
+                        placeholder="Portafolio de clientes..."
+                        className="bg-white border-none shadow-sm rounded-2xl h-14 pl-12 focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium text-base"
                         value={busqueda}
                         onChange={(e) => setBusqueda(e.target.value)}
                     />
@@ -103,84 +184,121 @@ export default function AppVendedorDashboard() {
             </div>
 
             {/* Client List */}
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 bg-white rounded-t-[2.5rem] shadow-2xl border-t border-slate-100 mt-2">
+            <div className="flex-1 overflow-y-auto px-4 space-y-3">
                 {isLoading ? (
-                    <div className="p-12 text-center text-slate-400 font-medium italic">Cargando portafolio...</div>
-                ) : clientes?.length === 0 ? (
-                    <div className="p-12 text-center flex flex-col items-center">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                            <Search className="w-10 h-10 text-slate-200" />
-                        </div>
-                        <p className="text-slate-400 font-medium italic">No se encontraron clientes</p>
-                    </div>
-                ) : (
-                    clientes?.map((c) => (
-                        <Link key={c.id} href={`/app-vendedor/pedido/${c.id}`} className="block group">
-                            <div className="p-5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer">
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{c.razon_social}</span>
-                                    <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5 mt-1">
-                                        <MapPin className="w-3 h-3 text-slate-400" /> Límite Cr: S/ {c.limite_credito?.toLocaleString()}
-                                    </span>
+                    <div className="p-12 text-center text-slate-400 font-medium italic">Sincronizando ruta...</div>
+                ) : clientes?.map((c: any) => (
+                    <Card key={c.id} className={`border-none shadow-sm rounded-3xl transition-all overflow-hidden ${c.visitado ? 'opacity-80 grayscale-[0.5]' : ''}`}>
+                        <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-slate-800 truncate text-[15px]">{c.razon_social}</h3>
+                                    <div className="flex items-center gap-3 mt-1.5">
+                                        <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase">
+                                            <MapPin className="w-3 h-3 mr-1" /> Lima
+                                        </div>
+                                        <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase">
+                                            <DollarSign className="w-3 h-3 mr-1 text-green-500" /> S/ {c.limite_credito?.toLocaleString()}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <Badge variant="outline" className="text-[10px] font-black uppercase tracking-tighter border-slate-200 bg-slate-50 text-slate-500 rounded-lg px-2 py-1 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all">
-                                        {c.estado}
-                                    </Badge>
+                                <div className="shrink-0 flex flex-col items-end gap-2">
+                                    {c.visitado ? (
+                                        <Badge className={`uppercase text-[9px] font-black tracking-tighter ${c.resultado_hoy === 'pedido_tomado' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                            {c.resultado_hoy === 'pedido_tomado' ? 'PEDIDO LOGRADO' : 'VISITADO'}
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-[9px] text-slate-400 border-slate-200">PENDIENTE</Badge>
+                                    )}
                                 </div>
                             </div>
-                        </Link>
-                    ))
-                )}
+
+                            <div className="mt-4 pt-4 border-t border-slate-50 flex gap-2">
+                                {!c.visitado && !visitaActiva && (
+                                    <Button
+                                        onClick={() => mutationCheckin.mutate(c)}
+                                        disabled={mutationCheckin.isPending}
+                                        className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border-none shadow-none font-black text-xs uppercase h-10 rounded-xl"
+                                    >
+                                        <MapPin className="w-4 h-4 mr-2" /> Iniciar Visita
+                                    </Button>
+                                )}
+                                {visitaActiva?.cliente_id === c.id && (
+                                    <Link href={`/app-vendedor/pedido/${c.id}`} className="flex-1">
+                                        <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase h-10 rounded-xl shadow-lg shadow-blue-500/20">
+                                            <ShoppingBag className="w-4 h-4 mr-2" /> Tomar Pedido
+                                        </Button>
+                                    </Link>
+                                )}
+                                {c.visitado && (
+                                    <Button variant="ghost" disabled className="flex-1 text-slate-400 font-bold text-xs uppercase h-10">
+                                        <CheckCircle2 className="w-4 h-4 mr-2" /> Gestión Completa
+                                    </Button>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
 
-            {/* Create Client Dialog */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="sm:max-w-[425px] rounded-3xl border-none shadow-2xl bg-white p-0 overflow-hidden">
-                    <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-8 text-white">
-                        <DialogHeader>
-                            <DialogTitle className="text-2xl font-black tracking-tight uppercase italic flex items-center gap-2">
-                                <UserPlus className="w-6 h-6" /> Nuevo Cliente
-                            </DialogTitle>
-                            <p className="text-blue-100/70 text-sm font-medium mt-1 uppercase tracking-widest text-[10px]">Registro rápido de campo</p>
-                        </DialogHeader>
+            {/* Checkout Dialog */}
+            <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+                <DialogContent className="rounded-t-3xl sm:rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+                    <div className="bg-blue-600 p-6 text-white">
+                        <DialogTitle className="text-xl font-black uppercase italic">Finalizar Visita</DialogTitle>
+                        <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1">Registra el resultado de la gestión</p>
                     </div>
-                    <form onSubmit={handleCreate} className="p-8 space-y-5">
-                        <div className="space-y-2">
-                            <Label className="text-slate-500 font-bold text-[10px] uppercase tracking-wider ml-1">RUC / DNI</Label>
-                            <Input name="numero_documento" placeholder="20123456789" required className="rounded-2xl border-slate-100 bg-slate-50 font-medium h-12" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-slate-500 font-bold text-[10px] uppercase tracking-wider ml-1">Razón Social</Label>
-                            <Input name="razon_social" placeholder="Nombre de la empresa o cliente" required className="rounded-2xl border-slate-100 bg-slate-50 font-medium h-12" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label className="text-slate-500 font-bold text-[10px] uppercase tracking-wider ml-1">Teléfono</Label>
-                                <Input name="telefono" placeholder="987..." className="rounded-2xl border-slate-100 bg-slate-50 font-medium h-12" />
+                    <div className="p-6 space-y-6">
+                        <div className="space-y-3">
+                            <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">Resultado de Visita</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    variant={checkoutData.resultado === 'pedido_tomado' ? 'default' : 'outline'}
+                                    className={`h-16 rounded-2xl flex flex-col items-center justify-center gap-1 ${checkoutData.resultado === 'pedido_tomado' ? 'bg-green-600' : ''}`}
+                                    onClick={() => setCheckoutData({ ...checkoutData, resultado: 'pedido_tomado' })}
+                                >
+                                    <ShoppingBag className="w-5 h-5" />
+                                    <span className="text-[10px] font-black uppercase">Pedido Tomado</span>
+                                </Button>
+                                <Button
+                                    variant={checkoutData.resultado === 'sin_pedido' ? 'default' : 'outline'}
+                                    className={`h-16 rounded-2xl flex flex-col items-center justify-center gap-1 ${checkoutData.resultado === 'sin_pedido' ? 'bg-red-600' : ''}`}
+                                    onClick={() => setCheckoutData({ ...checkoutData, resultado: 'sin_pedido' })}
+                                >
+                                    <XCircle className="w-5 h-5" />
+                                    <span className="text-[10px] font-black uppercase">Sin Pedido</span>
+                                </Button>
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-slate-500 font-bold text-[10px] uppercase tracking-wider ml-1">Distrito</Label>
-                                <Input name="distrito" placeholder="Lima" className="rounded-2xl border-slate-100 bg-slate-50 font-medium h-12" />
-                            </div>
                         </div>
-                        <DialogFooter className="pt-4">
-                            <Button type="submit" disabled={mutationCreate.isPending} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest h-14 rounded-2xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
-                                {mutationCreate.isPending ? 'Guardando...' : 'Registrar Cliente'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
+                        <div className="space-y-2">
+                            <Label className="uppercase text-[10px] font-black text-slate-500 ml-1">Observaciones</Label>
+                            <textarea
+                                className="w-full h-24 bg-slate-50 rounded-2xl p-4 text-sm font-medium border-none focus:ring-2 focus:ring-blue-500/20"
+                                placeholder="Escribe aquí algún detalle sobre la visita..."
+                                value={checkoutData.observaciones}
+                                onChange={(e) => setCheckoutData({ ...checkoutData, observaciones: e.target.value })}
+                            />
+                        </div>
+                        <Button
+                            onClick={() => mutationCheckout.mutate()}
+                            disabled={mutationCheckout.isPending}
+                            className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-blue-500/20"
+                        >
+                            {mutationCheckout.isPending ? 'Sincronizando...' : 'Confirmar Check-out'}
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
 
-            {/* Floating Action Button */}
-            <div className="fixed bottom-6 right-6 z-50">
+            {/* Footer FAB */}
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-6 w-full max-w-md">
                 <Button
                     size="lg"
-                    className="h-16 w-16 rounded-[2rem] shadow-2xl shadow-blue-600/40 bg-blue-600 hover:bg-blue-500 transition-all active:scale-90 flex items-center justify-center p-0 overflow-hidden group"
                     onClick={() => setIsDialogOpen(true)}
+                    className="w-full h-16 bg-slate-900 hover:bg-slate-800 text-white rounded-[2rem] shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all"
                 >
-                    <Plus className="h-8 w-8 text-white transition-transform group-hover:rotate-90" />
+                    <UserPlus className="w-6 h-6" />
+                    <span className="font-black uppercase tracking-widest">Nuevo Prospecto</span>
                 </Button>
             </div>
         </div>

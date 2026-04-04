@@ -8,6 +8,7 @@ export async function registrarIngreso(data: {
     tipoDoc: string;
     serieDoc: string;
     correlativo: string;
+    almacenId: string;
     items: any[];
 }) {
     const supabase = await createClient()
@@ -17,9 +18,14 @@ export async function registrarIngreso(data: {
 
     try {
         const { data: usuario } = await supabase.from('usuarios').select('empresa_id').eq('id', user.id).single()
-        const { data: almacen } = await supabase.from('almacenes').select('id').eq('empresa_id', usuario?.empresa_id).limit(1).single()
 
-        if (!almacen) throw new Error('No se encontró almacén configurado')
+        let targetAlmacenId = data.almacenId;
+        if (!targetAlmacenId) {
+            const { data: almacen } = await supabase.from('almacenes').select('id').eq('empresa_id', usuario?.empresa_id).limit(1).single()
+            targetAlmacenId = almacen?.id;
+        }
+
+        if (!targetAlmacenId) throw new Error('No se encontró almacén configurado')
 
         // 1. Create Compra
         const { data: compra, error: eCompra } = await supabase.from('compras').insert([{
@@ -50,7 +56,7 @@ export async function registrarIngreso(data: {
             const { data: currentStock } = await supabase.from('stock')
                 .select('id, cantidad')
                 .eq('producto_id', it.producto_id)
-                .eq('almacen_id', almacen.id)
+                .eq('almacen_id', targetAlmacenId)
                 .single()
 
             const nuevaCantidad = (Number(currentStock?.cantidad) || 0) + Number(it.cantidad)
@@ -60,7 +66,7 @@ export async function registrarIngreso(data: {
             } else {
                 await supabase.from('stock').insert([{
                     producto_id: it.producto_id,
-                    almacen_id: almacen.id,
+                    almacen_id: targetAlmacenId,
                     cantidad: it.cantidad,
                     empresa_id: usuario?.empresa_id
                 }])
@@ -70,7 +76,7 @@ export async function registrarIngreso(data: {
             await supabase.from('stock_movimientos').insert([{
                 empresa_id: usuario?.empresa_id,
                 producto_id: it.producto_id,
-                almacen_id: almacen.id,
+                almacen_id: targetAlmacenId,
                 tipo: 'entrada',
                 motivo: 'Compra',
                 referencia_id: compra.id,

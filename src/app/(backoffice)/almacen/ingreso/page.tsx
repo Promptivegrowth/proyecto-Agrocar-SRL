@@ -36,6 +36,17 @@ export default function IngresoMercaderia() {
         }
     });
 
+    const { data: almacenes } = useQuery({
+        queryKey: ['almacenes-intake'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from('almacenes').select('id, nombre').eq('activo', true);
+            if (error) throw error;
+            return data;
+        }
+    });
+
+    const [almacenId, setAlmacenId] = useState('');
+
     const agregarItem = () => {
         if (!productos || productos.length === 0) return;
         setItems([...items, {
@@ -56,6 +67,7 @@ export default function IngresoMercaderia() {
 
     const mutationSave = useMutation({
         mutationFn: async () => {
+            if (!almacenId) throw new Error("Debe seleccionar un almacén destino");
             if (items.length === 0) throw new Error("No hay items para ingresar");
 
             const result = await registrarIngreso({
@@ -63,6 +75,7 @@ export default function IngresoMercaderia() {
                 tipoDoc,
                 serieDoc,
                 correlativo,
+                almacenId,
                 items
             });
 
@@ -105,7 +118,17 @@ export default function IngresoMercaderia() {
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Almacén Destino</label>
-                        <Input value="Almacén Principal (Refrigerado)" readOnly className="bg-gray-50 text-gray-600" />
+                        <select
+                            className="w-full h-10 bg-white border border-gray-200 rounded-lg px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            value={almacenId}
+                            onChange={e => setAlmacenId(e.target.value)}
+                            required
+                        >
+                            <option value="">Seleccione Almacén...</option>
+                            {almacenes?.map(a => (
+                                <option key={a.id} value={a.id}>{a.nombre}</option>
+                            ))}
+                        </select>
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Tipo Documento</label>

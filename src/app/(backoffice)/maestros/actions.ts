@@ -18,14 +18,23 @@ export async function guardarProducto(data: any, productId?: string) {
 
         if (!usuario) throw new Error('Usuario no vinculado a empresa')
 
-        const payload = { ...data, empresa_id: usuario.empresa_id }
+        const payload = {
+            ...data,
+            empresa_id: usuario.empresa_id,
+            activo: true,
+            created_at: new Date().toISOString()
+        }
 
+        let result;
         if (productId) {
-            const { error } = await supabase.from('productos').update(payload).eq('id', productId)
-            if (error) throw error
+            result = await supabase.from('productos').update(payload).eq('id', productId).select().single()
         } else {
-            const { error } = await supabase.from('productos').insert([payload])
-            if (error) throw error
+            result = await supabase.from('productos').insert([payload]).select().single()
+        }
+
+        if (result.error) {
+            console.error('Error en Supabase:', result.error)
+            throw result.error
         }
 
         revalidatePath('/maestros/productos')

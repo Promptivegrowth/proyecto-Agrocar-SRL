@@ -61,6 +61,15 @@ export default function AlmacenPage() {
         }
     });
 
+    const { data: almacenes } = useQuery({
+        queryKey: ['almacenes'],
+        queryFn: async () => {
+            const { data, error } = await supabase.from('almacenes').select('id, nombre').eq('activo', true);
+            if (error) throw error;
+            return data;
+        }
+    });
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -110,8 +119,9 @@ export default function AlmacenPage() {
                                                 <SelectValue placeholder="Origen" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="1">Almacén Central</SelectItem>
-                                                <SelectItem value="2">Almacén Lima Sur</SelectItem>
+                                                {almacenes?.map(a => (
+                                                    <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -122,8 +132,9 @@ export default function AlmacenPage() {
                                                 <SelectValue placeholder="Destino" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="1">Almacén Central</SelectItem>
-                                                <SelectItem value="2">Almacén Lima Sur</SelectItem>
+                                                {almacenes?.map(a => (
+                                                    <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>

@@ -10,11 +10,11 @@ export default function Header() {
 
     const handleSignOut = async () => {
         try {
-            await signOut();
-        } catch (error) {
-            console.error('Error signing out:', error);
-            // fallback if server action fails
             await supabase.auth.signOut();
+            // Force redirection to login via window.location for total session clearing
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Logout error:', error);
             window.location.href = '/login';
         }
     };

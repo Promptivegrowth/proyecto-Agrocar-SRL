@@ -17,6 +17,7 @@ export default function LoginPage({
 }) {
     const params = use(searchParams);
     const [isLoading, setIsLoading] = useState(false);
+    const [showOverlay, setShowOverlay] = useState(false);
 
     const handleSubmit = async (formData: FormData) => {
         setIsLoading(true);
@@ -28,12 +29,13 @@ export default function LoginPage({
                 return;
             }
             toast.success("¡Bienvenido al sistema Agrocar!", {
-                description: "Cargando panel de control..."
+                description: "Sincronizando sesión segura..."
             });
-            // Delay redirect to show success state
+            // Show premium transition overlay
+            setShowOverlay(true);
             setTimeout(() => {
                 window.location.href = '/';
-            }, 1000);
+            }, 1800);
         } catch (error) {
             setIsLoading(false);
             // Next.js redirect throws an error, we ignore it if it's a redirect
@@ -142,6 +144,24 @@ export default function LoginPage({
                     </p>
                 </div>
             </div>
+
+            {/* Premium Success Overlay */}
+            {showOverlay && (
+                <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center animate-in fade-in duration-500">
+                    <div className="relative">
+                        <div className="w-32 h-32 bg-blue-600/20 rounded-full animate-ping absolute inset-0" />
+                        <div className="w-32 h-32 bg-blue-600 rounded-3xl flex items-center justify-center relative z-10 shadow-2xl shadow-blue-500/50 border border-blue-400/30">
+                            <Snowflake className="w-16 h-16 text-white animate-spin-slow" />
+                        </div>
+                    </div>
+                    <h2 className="text-2xl font-black text-white mt-10 tracking-widest uppercase italic">Autenticación Exitosa</h2>
+                    <p className="text-blue-400 font-bold text-xs mt-2 uppercase tracking-[0.3em] animate-pulse">Sincronizando con el servidor...</p>
+
+                    <div className="mt-12 w-64 h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-600 animate-progress-fast" />
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

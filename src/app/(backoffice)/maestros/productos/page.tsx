@@ -102,7 +102,7 @@ export default function ProductosPage() {
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger
                         render={
-                            <Button className="bg-primary hover:bg-primary/90 text-white font-medium" onClick={() => setCurrentProduct(null)}>
+                            <Button className="bg-primary hover:bg-primary/90 text-white font-medium" onClick={() => { setCurrentProduct(null); setIsDialogOpen(true); }}>
                                 <Plus className="w-4 h-4 mr-2" /> Nuevo Producto
                             </Button>
                         }
@@ -218,8 +218,12 @@ export default function ProductosPage() {
                                     <TableCell>{p.unidad_medida}</TableCell>
                                     <TableCell className="text-right">S/ {p.precio_lista_a?.toFixed(2)}</TableCell>
                                     <TableCell className="text-right">S/ {p.precio_lista_b?.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-medium text-blue-600">
-                                        {p.stock?.[0]?.cantidad || 0}
+                                    <TableCell className="text-right font-medium">
+                                        {p.stock && p.stock.length > 0 ? (
+                                            <span className="text-blue-600 font-bold">{p.stock.reduce((acc: number, s: any) => acc + Number(s.cantidad), 0)}</span>
+                                        ) : (
+                                            <Badge variant="outline" className="text-[10px] text-gray-400 border-dashed">Sin Stock</Badge>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant={p.activo ? 'default' : 'destructive'} className={p.activo ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}>
