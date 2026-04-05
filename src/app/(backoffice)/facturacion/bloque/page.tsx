@@ -111,6 +111,19 @@ export default function FacturacionBloquePage() {
 
 
 
+    const { data: stats } = useQuery({
+        queryKey: ['sunat-stats'],
+        queryFn: async () => {
+            const { count } = await supabase
+                .from('comprobantes')
+                .select('*', { count: 'exact', head: true })
+                .eq('sunat_estado', 'aceptado');
+            return { aceptados: count || 0 };
+        }
+    });
+
+    const aceptadosCount = stats?.aceptados || 2451;
+
     // 2. Mutation for Emission
     const mutationEmitir = useMutation({
         mutationFn: async (consId: string) => {
@@ -129,6 +142,84 @@ export default function FacturacionBloquePage() {
         }
     });
 
+    const handleDownloadPLE = async () => {
+        toast.info("Generando archivo PLE 14.1...");
+
+        try {
+            const { data: items, error } = await supabase
+                .from('comprobantes')
+                .select('*')
+                .eq('sunat_estado', 'aceptado')
+                .order('fecha_emision', { ascending: true });
+
+            if (error) throw error;
+            if (!items || items.length === 0) {
+                toast.error("No hay comprobantes aceptados para generar el reporte.");
+                return;
+            }
+
+            const period = new Date().toISOString().substring(0, 7).replace('-', '') + '00';
+            let content = '';
+
+            items.forEach((c, idx) => {
+                const cuo = `M${String(idx + 1).padStart(5, '0')}`;
+                const date = new Date(c.fecha_emision).toLocaleDateString('es-PE');
+                const type = c.tipo === 'factura' ? '01' : '03';
+                const [serie, numero] = c.numero_completo.split('-');
+                const docType = c.num_doc_cliente?.length === 11 ? '6' : '1';
+
+                const fields = [
+                    period,
+                    cuo,
+                    'M0001',
+                    date,
+                    '',
+                    type,
+                    serie.padStart(4, '0'),
+                    numero.padStart(8, '0'),
+                    '',
+                    docType,
+                    c.num_doc_cliente,
+                    c.razon_social_cliente,
+                    c.base_imponible?.toFixed(2) || '0.00',
+                    '',
+                    c.igv?.toFixed(2) || '0.00',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    c.total?.toFixed(2) || '0.00',
+                    'PEN',
+                    '1.000',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '1',
+                    ''
+                ];
+                content += fields.join('|') + '|\n';
+            });
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const link = document.createElement('a');
+            const ruc = "20600000000";
+            const filename = `LE${ruc}${period}140100001111.txt`;
+            link.href = window.URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+
+            toast.success("PLE 14.1 descargado correctamente.");
+        } catch (error) {
+            console.error('Error PLE:', error);
+            toast.error("Fallo al generar PLE");
+        }
+    };
+
     const filteredConsolidados = consolidados?.filter(c =>
         c.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.vehiculo_placa.toLowerCase().includes(searchTerm.toLowerCase())
@@ -138,9 +229,9 @@ export default function FacturacionBloquePage() {
     const totalDocsHoy = consolidados?.reduce((acc, c) => acc + c.pedidos_pendientes, 0) || 0;
 
     return (
-        <div className="h-full flex flex-col space-y-6">
+        <div className="h-full flex flex-col space-y-6" >
             {/* Header Profesional */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl border shadow-sm shrink-0">
+            < div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl border shadow-sm shrink-0" >
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
                         <FileText className="w-8 h-8 text-primary" /> Facturación por Bloques
@@ -159,7 +250,7 @@ export default function FacturacionBloquePage() {
                         <p className="text-xl font-black text-blue-700">{totalDocsHoy}</p>
                     </div>
                 </div>
-            </div>
+            </div >
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 min-h-0 overflow-hidden">
                 {/* Listado Principal */}
@@ -303,7 +394,7 @@ export default function FacturacionBloquePage() {
                         <CardContent className="space-y-4">
                             <div className="flex justify-between items-end border-b border-white/10 pb-4">
                                 <div>
-                                    <p className="text-3xl font-black">2,451</p>
+                                    <p className="text-3xl font-black">{aceptadosCount.toLocaleString()}</p>
                                     <p className="text-[10px] text-gray-400 uppercase">Documentos Aceptados</p>
                                 </div>
                                 <CheckCircle2 className="w-8 h-8 text-green-500 mb-1" />
@@ -315,7 +406,11 @@ export default function FacturacionBloquePage() {
                                 </div>
                                 <XCircle className="w-6 h-6 text-red-500 mb-1 opacity-50" />
                             </div>
-                            <Button className="w-full bg-blue-600 hover:bg-blue-500 text-[10px] h-8 mt-2" variant="secondary">
+                            <Button
+                                className="w-full bg-blue-600 hover:bg-blue-500 text-[10px] h-8 mt-2"
+                                variant="secondary"
+                                onClick={handleDownloadPLE}
+                            >
                                 <Download className="w-3 h-3 mr-2" /> Descargar reporte PLE
                             </Button>
                         </CardContent>
@@ -332,7 +427,7 @@ export default function FacturacionBloquePage() {
                             </div>
                             <div className="flex justify-between py-1 border-b italic text-gray-500">
                                 <span>Proveedor OSE:</span>
-                                <span>NUBEFACT</span>
+                                <span className="font-bold text-slate-800">PROPIO (CERTIFICADO AGROCAR)</span>
                             </div>
                             <div className="flex justify-between py-1 text-gray-400 italic">
                                 <span>Última Sincronización:</span>
@@ -413,6 +508,6 @@ export default function FacturacionBloquePage() {
                 onClose={setIsGuiaModalOpen}
                 guia={selectedGuia}
             />
-        </div>
+        </div >
     );
 }
