@@ -25,7 +25,8 @@ export default function RecibosCajaPage() {
             const { data, error } = await supabase
                 .from('comprobantes')
                 .select('*')
-                .eq('tipo', 'RC')
+                .eq('tipo', 'DI')
+                .eq('serie', 'RC01')
                 .order('fecha_emision', { ascending: false })
                 .order('correlativo', { ascending: false });
 

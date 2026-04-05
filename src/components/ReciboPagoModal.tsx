@@ -33,7 +33,32 @@ export function ReciboPagoModal({ isOpen, onClose, pago }: ReciboPagoModalProps)
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl p-0 overflow-hidden border-none shadow-2xl bg-slate-50 max-h-[95vh] flex flex-col">
+            <DialogContent className="max-w-5xl p-0 overflow-hidden border-none shadow-2xl bg-slate-50 max-h-[95vh] flex flex-col">
+                <style jsx global>{`
+                    @media print {
+                        body * {
+                            visibility: hidden !important;
+                        }
+                        #printable-receipt, #printable-receipt * {
+                            visibility: visible !important;
+                        }
+                        #printable-receipt {
+                            position: absolute !important;
+                            left: 0 !important;
+                            top: 0 !important;
+                            width: 100% !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            background: white !important;
+                            box-shadow: none !important;
+                            border: none !important;
+                        }
+                        /* Hide everything else explicitly just in case */
+                        .print\\:hidden, [role="dialog"] > :not(#printable-receipt) {
+                            display: none !important;
+                        }
+                    }
+                `}</style>
                 <DialogHeader className="p-6 bg-white border-b flex flex-row items-center justify-between space-y-0 shrink-0 print:hidden">
                     <div className="flex items-center gap-3">
                         <div className="bg-green-100 p-2 rounded-lg">
@@ -54,8 +79,8 @@ export function ReciboPagoModal({ isOpen, onClose, pago }: ReciboPagoModalProps)
                     </div>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50 print:p-0 print:bg-white">
-                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 mx-auto max-w-[800px] print:m-0 print:shadow-none print:border-none print:max-w-full">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 print:p-0 print:bg-white flex justify-center">
+                    <div id="printable-receipt" className="bg-white p-10 rounded-2xl shadow-xl border border-slate-200 w-full max-w-[850px] print:m-0 print:shadow-none print:border-none print:max-w-full">
                         {/* Header Documento */}
                         <div className="flex justify-between items-start mb-10">
                             <div className="space-y-2">

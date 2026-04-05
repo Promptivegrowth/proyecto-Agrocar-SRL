@@ -73,7 +73,7 @@ export async function registrarPago(data: {
                 .from('series_comprobantes')
                 .insert({
                     empresa_id: empresaId,
-                    tipo: 'RC',
+                    tipo: 'DI',
                     serie: 'RC01',
                     correlativo_actual: 0,
                     activo: true
@@ -94,7 +94,7 @@ export async function registrarPago(data: {
                 comprobante_id: data.comprobanteId,
                 cliente_id: data.cliente_id,
                 monto: data.monto,
-                metodo_pago: data.metodo,
+                metodo_pago: data.metodo === 'plin' ? 'transferencia' : data.metodo,
                 usuario_cobrador_id: user.id,
                 fecha: new Date().toISOString().split('T')[0],
                 observaciones: `${numCompletoRC} | ${data.referencia || 'S/Ref'}`
@@ -118,7 +118,7 @@ export async function registrarPago(data: {
             .from('comprobantes')
             .insert({
                 empresa_id: empresaId,
-                tipo: 'RC',
+                tipo: 'DI',
                 serie: 'RC01',
                 correlativo: nextCorrRC,
                 numero_completo: numCompletoRC,

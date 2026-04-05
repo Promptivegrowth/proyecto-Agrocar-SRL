@@ -232,7 +232,7 @@ function CuentasCorrientesContent() {
                         </div>
                         <div className="text-right">
                             <div className="text-sm font-medium text-gray-500">Línea de Crédito: <span className="text-gray-900">S/ {cliente?.limite_credito?.toFixed(2) || '0.00'}</span></div>
-                            <div className="text-sm font-medium text-primary mt-1">Crédito Disponible: <span className="font-bold text-lg">S/ {(Number(cliente?.limite_credito || 0) - Number(deudas?.reduce((acc, d) => acc + d.saldo, 0) || 0)).toFixed(2)}</span></div>
+                            <div className="text-sm font-medium text-primary mt-1">Crédito Disponible: <span className="font-bold text-lg">S/ {Math.max(0, (Number(cliente?.limite_credito || 0) - Number(deudas?.reduce((acc, d) => acc + d.saldo, 0) || 0))).toFixed(2)}</span></div>
                         </div>
                     </div>
                 </CardHeader>
