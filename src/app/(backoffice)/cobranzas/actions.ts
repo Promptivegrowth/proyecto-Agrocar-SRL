@@ -114,7 +114,7 @@ export async function registrarPago(data: {
             .single();
 
         // Insertar el "Recibo de Caja" como un comprobante más para visibilidad en Facturación
-        const { data: rcDoc } = await supabase
+        const { data: rcDoc, error: rcError } = await supabase
             .from('comprobantes')
             .insert({
                 empresa_id: empresaId,
@@ -125,19 +125,26 @@ export async function registrarPago(data: {
                 fecha_emision: new Date().toISOString().split('T')[0],
                 pedido_id: null,
                 cliente_id: data.cliente_id,
-                tipo_doc_cliente: '-', // Info ya en el header
+                tipo_doc_cliente: '-',
                 num_doc_cliente: originalComp?.num_doc_cliente,
                 razon_social_cliente: originalComp?.razon_social_cliente,
                 direccion_cliente: 'COBRANZA DE DOCUMENTO: ' + (originalComp?.numero_completo || ''),
                 moneda: originalComp?.moneda || 'PEN',
                 total: data.monto,
                 monto_pagado: data.monto,
+                base_imponible: 0,
+                igv: 0,
                 estado_pago: 'pagado',
                 sunat_estado: 'interno',
                 usuario_emisor_id: user.id
             })
             .select()
             .single();
+
+        if (rcError) {
+            console.error('CRITICAL: Error creating Recibo de Caja doc:', rcError);
+            // We don't throw yet to allow the payment itself to finish, but we log heavily
+        }
 
         // Actualizar correlativo de serie RC
         await supabase

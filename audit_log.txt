@@ -1,0 +1,38 @@
+--- FINAL AUDIT ---
+No DI records found.
+--- CLIENTS ---
+6a093b84-6c99-4291-8b79-bfae46830801 | test | 0
+433171c3-5be1-4624-ba8d-7b1dedeb9f80 | Bodega o Restaurante Demo 1 SAC | 0
+70863346-9f1f-4d5f-a1ff-e795f578aae1 | test | 20
+a5ac821b-a3fa-47d8-b0af-4c4ba91d141e | mz ht lt 20 | 0
+b548e377-097d-48cb-902f-053d7e5fc7e0 | Persona Demo 0 | 5000
+e6c334f7-1b03-400d-bc29-dd13fb389334 | Persona Demo 2 | 0
+a2c97fab-7705-40f8-84e2-c4610a4b769e | Bodega o Restaurante Demo 3 SAC | 5000
+246120f3-0002-4042-9cef-2bb31b0aebf0 | Persona Demo 4 | 0
+64a4444c-61d4-48c7-ad8d-952014e1a92d | Bodega o Restaurante Demo 5 SAC | 0
+c5695c3f-21c0-4825-b5d7-cd957112d9ed | hola | 0
+caeb1543-4105-4f01-989e-c32c35ac6349 | Persona Demo 6 | 5000
+31d079c5-fbc4-4faf-bb46-371f3c230549 | Bodega o Restaurante Demo 7 SAC | 0
+8c261312-49d1-46ec-b8fa-ecdb2b3a6e2e | Persona Demo 8 | 0
+a1da3487-3c6e-4c05-a0fa-ca0a84c1dd5a | Bodega o Restaurante Demo 9 SAC | 5000
+eb7d1921-038e-4053-805f-34d7dfc719b0 | Persona Demo 10 | 0
+bea5f9e4-26c7-4a7b-affb-2b14dee6aef3 | Bodega o Restaurante Demo 11 SAC | 0
+968700dc-c649-49ee-8060-8227d832dce3 | Persona Demo 12 | 5000
+5af324c9-b4ca-43de-bd19-ad3a392a35fc | Bodega o Restaurante Demo 13 SAC | 0
+316f90ba-2cc7-4237-a708-94d9718258fa | Persona Demo 14 | 0
+24575b1c-6cf9-4aa8-a4ae-09a0bde44679 | Bodega o Restaurante Demo 15 SAC | 5000
+f474980c-8f74-4aa2-bf08-90b1a23a98bc | Persona Demo 16 | 0
+5427c827-1f7e-4e86-9422-f1d21e56e866 | Bodega o Restaurante Demo 17 SAC | 0
+8a9e975e-05a9-40d4-a0c3-790692c7da43 | Persona Demo 18 | 5000
+2797953f-0e22-4194-9f46-46e2ebb7bfbf | Bodega o Restaurante Demo 19 SAC | 0
+b28cde7c-746c-49c3-ad31-2ee2ae6f758d | Persona Demo 20 | 0
+faa7afe6-a48e-48c9-b4bf-17d6d9874716 | Bodega o Restaurante Demo 21 SAC | 5000
+9a5766dc-1be7-4b15-be42-d4b3e3e1affc | Persona Demo 22 | 0
+434a79bc-8c7f-47ae-8baf-4d282b1937f7 | Bodega o Restaurante Demo 23 SAC | 0
+533189b8-c2f6-487f-b408-31c6d9c3801b | Persona Demo 24 | 5000
+a94f004d-63a4-4a73-b0b3-8e13bc05cfe3 | Bodega o Restaurante Demo 25 SAC | 0
+924fb90f-147e-4166-b8fb-79e1084b5988 | Persona Demo 26 | 0
+0be2705c-beea-40c3-a394-9c3a67e69156 | Bodega o Restaurante Demo 27 SAC | 5000
+6a2da2de-3274-449e-8ece-e302500d32c6 | Persona Demo 28 | 0
+7d612ad6-07b9-46aa-9820-dad4445e8e7a | Bodega o Restaurante Demo 29 SAC | 0
+d298e592-41fb-4b76-b4b4-55c49cb03057 | 654545 | 0
