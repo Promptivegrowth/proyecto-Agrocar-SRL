@@ -19,8 +19,7 @@ import {
 } from '@/components/ui/dialog';
 
 // ─── Menú Personalizado (reemplaza DropdownMenu de Base UI para evitar Error #31) ─
-function FileMenu({ onView, onDownload, onShare, onDelete }: {
-    onView: () => void;
+function FileMenu({ onDownload, onShare, onDelete }: {
     onDownload: () => void;
     onShare: () => void;
     onDelete: () => void;
@@ -49,10 +48,6 @@ function FileMenu({ onView, onDownload, onShare, onDelete }: {
             {open && (
                 <div className="absolute right-0 bottom-full mb-1 z-50 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 animate-in fade-in-0 zoom-in-95 duration-100">
                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-2 py-1">Opciones</p>
-                    <button onClick={() => { setOpen(false); onView(); }} className="w-full flex items-center gap-2 px-2 py-2 text-left rounded-xl hover:bg-slate-50 transition-colors">
-                        <Eye className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-xs font-bold text-slate-700">Previsualizar</span>
-                    </button>
                     <button onClick={() => { setOpen(false); onDownload(); }} className="w-full flex items-center gap-2 px-2 py-2 text-left rounded-xl hover:bg-slate-50 transition-colors">
                         <Download className="w-3.5 h-3.5 text-slate-400" />
                         <span className="text-xs font-bold text-slate-700">Descargar</span>
@@ -130,11 +125,7 @@ const getFileIcon = (ext: string | null, mime: string | null) => {
     return { icon: File, color: '#95A5A6' };
 };
 
-const getCompressionSavings = (original: number, stored: number): string | null => {
-    if (!original || !stored || stored >= original) return null;
-    const pct = Math.round((1 - stored / original) * 100);
-    return pct > 0 ? `↓ ${pct}%` : null;
-};
+
 
 const getTimeAgo = (dateStr: string): string => {
     const now = new Date();
@@ -153,7 +144,6 @@ type UploadProgress = {
     status: 'pending' | 'processing' | 'uploading' | 'done' | 'error';
     original: number;
     stored?: number;
-    savings?: string;
     error?: string;
 };
 
@@ -167,33 +157,9 @@ async function processAndUploadFile(
 
     onProgress({ status: 'processing' });
 
-    let archivoFinal: File = file;
-    let storedName = file.name;
-
-    // OPTIMIZACIÓN por tipo
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) {
-        try {
-            const imageCompression = (await import('browser-image-compression')).default;
-            const compressed: Blob = await imageCompression(file, {
-                maxSizeMB: 1,
-                maxWidthOrHeight: 2048,
-                useWebWorker: true,
-            }) as unknown as Blob;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            archivoFinal = compressed as any;
-        } catch { /* Keep original */ }
-    } else if (['docx', 'xlsx', 'pptx', 'txt', 'csv'].includes(ext)) { // REMOVED pdf from here
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const pakoMod = await import('pako');
-            const pakoDefault = (pakoMod as any).default || pakoMod;
-            const arrayBuffer = await file.arrayBuffer();
-            const compressed: Uint8Array = pakoDefault.gzip(new Uint8Array(arrayBuffer), { level: 6 }) as Uint8Array;
-            storedName = file.name + '.gz';
-            const blob = new Blob([compressed.buffer as ArrayBuffer], { type: 'application/gzip' });
-            archivoFinal = new window.File([blob], storedName, { type: 'application/gzip' });
-        } catch { /* Keep original */ }
-    }
+    // SIN COMPRESIÓN: Mantener original para evitar daños en Excel/PDF
+    const archivoFinal: File = file;
+    const storedName = file.name;
 
     // Hash SHA-256 para deduplicación
     let hash = '';
@@ -247,8 +213,7 @@ async function processAndUploadFile(
         return;
     }
 
-    const savings = getCompressionSavings(tamanoOriginal, archivoFinal.size);
-    onProgress({ status: 'done', stored: archivoFinal.size, savings: savings || undefined });
+    onProgress({ status: 'done', stored: archivoFinal.size });
 }
 
 // ─── Componentes Internos ─────────────────────────────────────────────────────
@@ -283,9 +248,8 @@ function ProyectoItem({ proyecto, isActive, onClick }: { proyecto: Proyecto; isA
     );
 }
 
-function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () => void; onMenu: (action: 'view' | 'download' | 'share' | 'delete') => void }) {
+function FileCard({ archivo, onMenu }: { archivo: Archivo; onMenu: (action: 'download' | 'share' | 'delete') => void }) {
     const { icon: Icon, color } = getFileIcon(archivo.extension, archivo.tipo_mime);
-    const savings = getCompressionSavings(archivo.tamano_original, archivo.tamano_almacenado);
 
     return (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-[#1A2C45]/20 transition-all group flex flex-col overflow-hidden hover:-translate-y-1">
@@ -293,7 +257,7 @@ function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () =>
             <div
                 className="h-32 flex items-center justify-center cursor-pointer relative overflow-hidden"
                 style={{ background: `${color}15` }}
-                onClick={onView}
+                onClick={() => onMenu('download')}
             >
                 <Icon className="w-12 h-12 opacity-70" style={{ color }} />
                 {archivo.tiene_clave && (
@@ -303,7 +267,7 @@ function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () =>
                 )}
                 <div className="absolute inset-0 bg-[#1A2C45]/0 group-hover:bg-[#1A2C45]/5 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                     <div className="bg-white/90 backdrop-blur-sm rounded-2xl px-3 py-1.5 text-xs font-black uppercase text-[#1A2C45] tracking-tight flex items-center gap-2">
-                        <Eye className="w-3 h-3" /> Ver
+                        <Download className="w-3 h-3" /> Descargar
                     </div>
                 </div>
             </div>
@@ -317,11 +281,7 @@ function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () =>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">
                         {formatBytes(archivo.tamano_original)}
                     </span>
-                    {savings && (
-                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                            {savings}
-                        </span>
-                    )}
+
                     <span className="text-[10px] text-slate-300 uppercase font-bold">
                         {(archivo.extension || '?').toUpperCase()}
                     </span>
@@ -343,195 +303,18 @@ function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () =>
             <div className="px-4 pb-4 flex gap-2">
                 <Button
                     size="sm"
-                    onClick={onView}
+                    onClick={() => onMenu('download')}
                     className="flex-1 h-8 rounded-xl bg-[#1A2C45] hover:bg-[#1A2C45]/90 text-white text-[10px] font-black uppercase tracking-tight"
                 >
-                    <Eye className="w-3 h-3 mr-1.5" /> Ver
+                    <Download className="w-3 h-3 mr-1.5" /> Descargar
                 </Button>
                 <FileMenu
-                    onView={onView}
                     onDownload={() => onMenu('download')}
                     onShare={() => onMenu('share')}
                     onDelete={() => onMenu('delete')}
                 />
             </div>
         </div>
-    );
-}
-
-// ─── Visor Modal ─────────────────────────────────────────────────────────────
-function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: () => void }) {
-    const [signedUrl, setSignedUrl] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-
-    const queryClient = useQueryClient();
-
-    const loadVisor = useCallback(async () => {
-        if (!archivo) return;
-        setLoading(true);
-        try {
-            // Ensure path doesn't have leading slash for the SDK
-            const path = archivo.storage_path.startsWith('/')
-                ? archivo.storage_path.substring(1)
-                : archivo.storage_path;
-
-            const { data, error } = await supabase.storage
-                .from('archivos-corporativos')
-                .createSignedUrl(path, 3600);
-
-            if (error) throw error;
-            setSignedUrl(data.signedUrl);
-
-            // Register view synchronously in UI
-            await supabase.from('archivos').update({
-                total_vistas: archivo.total_vistas + 1,
-                ultima_vista: new Date().toISOString()
-            }).eq('id', archivo.id);
-
-            // Invalidate cache to reflect new view count immediately
-            queryClient.invalidateQueries({ queryKey: ['archivos-proyecto'] });
-        } catch (e: any) {
-            toast.error('Error al cargar el archivo: ' + e.message);
-        } finally {
-            setLoading(false);
-        }
-    }, [archivo, queryClient]);
-
-    // Load visor when archivo changes
-    useEffect(() => {
-        if (archivo) loadVisor();
-    }, [archivo, loadVisor]);
-
-    if (!archivo) return null;
-
-    const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(archivo.extension || '');
-    const isPDF = archivo.extension === 'pdf';
-    const isText = ['txt', 'csv', 'json'].includes(archivo.extension || '');
-
-    return (
-        <Dialog open={!!archivo} onOpenChange={onClose}>
-            <DialogContent className="max-w-6xl sm:max-w-none w-[95vw] h-[90vh] p-0 overflow-hidden rounded-[2.5rem] border-0 shadow-2xl bg-[#0F172A] flex flex-col">
-                {/* Header */}
-                <div className="p-6 flex items-center justify-between bg-gradient-to-r from-[#1A2C45] to-[#243B55] text-white z-10 shadow-lg shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-white/10 p-2.5 rounded-xl">
-                            <FileText className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="font-black text-sm tracking-tight leading-tight">
-                                {archivo.nombre_original}
-                            </h3>
-                            <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-0.5">
-                                {formatBytes(archivo.tamano_original)} · {(archivo.extension || '').toUpperCase()} · 👁 {archivo.total_vistas + 1} vistas
-                            </p>
-                        </div>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onClose}
-                        className="text-white/70 hover:text-white hover:bg-white/10 rounded-xl h-10 w-10 p-0"
-                    >
-                        <XCircle className="w-5 h-5" />
-                    </Button>
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 overflow-hidden bg-slate-900 relative">
-                    {loading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20">
-                            <div className="flex flex-col items-center gap-4 text-white/50">
-                                <Loader2 className="w-10 h-10 animate-spin" />
-                                <p className="text-xs font-black uppercase tracking-widest">Cargando visor seguro...</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {signedUrl && !loading && (
-                        <div className="w-full h-full flex flex-col">
-                            {isImage && (
-                                <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-800 to-slate-900">
-                                    <div className="relative select-none group">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={signedUrl}
-                                            alt={archivo.nombre_original}
-                                            className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-2xl border border-white/5"
-                                            draggable={false}
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                                            <p className="text-white font-black text-4xl uppercase tracking-[1em] rotate-[-30deg] whitespace-nowrap select-none">AGROCAR SRL</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {isPDF && (
-                                <div className="flex-1 relative" style={{ minHeight: 0 }}>
-                                    <object
-                                        data={signedUrl}
-                                        type="application/pdf"
-                                        style={{ width: '100%', height: '100%', display: 'block', border: 'none' }}
-                                    >
-                                        <div className="flex flex-col items-center justify-center h-full text-white/60 gap-4">
-                                            <FileText className="w-16 h-16 opacity-30" />
-                                            <p className="text-sm font-bold">Tu navegador no puede mostrar el PDF aquí.</p>
-                                            <a
-                                                href={signedUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="bg-white/10 hover:bg-white/20 text-white rounded-xl px-6 py-2 text-sm font-bold transition-colors"
-                                            >
-                                                Abrir PDF en nueva pestaña
-                                            </a>
-                                        </div>
-                                    </object>
-                                </div>
-                            )}
-
-                            {isText && (
-                                <div className="flex-1 p-8 bg-slate-950" style={{ minHeight: 0 }}>
-                                    <iframe
-                                        src={signedUrl}
-                                        className="w-full h-full bg-white rounded-2xl shadow-xl border-0"
-                                        title={archivo.nombre_original}
-                                        style={{ minHeight: 0 }}
-                                    />
-                                </div>
-                            )}
-
-                            {!isImage && !isPDF && !isText && (
-                                <div className="flex-1 flex items-center justify-center text-white/50 bg-slate-900">
-                                    <div className="text-center space-y-4 max-w-sm px-6">
-                                        <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/10">
-                                            <FileText className="w-10 h-10 text-white/20" />
-                                        </div>
-                                        <p className="font-black uppercase text-sm tracking-[0.2em] text-white">Vista previa no disponible</p>
-                                        <p className="text-xs text-slate-500 leading-relaxed">Este formato no puede previsualizarse en el navegador. Descárgalo para verlo.</p>
-                                        <a href={signedUrl} download={archivo.nombre_original}
-                                            className="inline-flex items-center mt-6 rounded-2xl border border-white/10 text-white hover:bg-white/10 h-10 px-8 font-bold text-sm transition-colors">
-                                            <Download className="w-4 h-4 mr-2" /> Descargar Archivo
-                                        </a>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {!signedUrl && !loading && (
-                        <div className="flex items-center justify-center h-full text-white/50">
-                            <div className="text-center">
-                                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-30 text-red-400" />
-                                <p className="text-red-400 font-bold mb-4">No se pudo generar el enlace seguro</p>
-                                <Button onClick={loadVisor} className="bg-white/10 hover:bg-white/20 text-white rounded-xl">
-                                    Reintentar carga
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </DialogContent>
-        </Dialog>
     );
 }
 
@@ -733,7 +516,7 @@ function UploadModal({
                             </p>
                             {totalStored > 0 && (
                                 <p className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                                    {formatBytes(totalOriginal)} → {formatBytes(totalStored)} ({getCompressionSavings(totalOriginal, totalStored)})
+                                    {formatBytes(totalOriginal)}
                                 </p>
                             )}
                         </div>
@@ -749,17 +532,12 @@ function UploadModal({
                                     <p className="text-xs font-black text-slate-700 truncate">{f.name}</p>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase">
                                         {f.status === 'pending' && `${formatBytes(f.original)} · Esperando`}
-                                        {f.status === 'processing' && 'Optimizando...'}
-                                        {f.status === 'uploading' && 'Subiendo...'}
-                                        {f.status === 'done' && `${formatBytes(f.original)}${f.stored ? ` → ${formatBytes(f.stored)}` : ''} ${f.savings ? `(${f.savings})` : ''}`}
+                                        {(f.status === 'processing' || f.status === 'uploading') && 'Subiendo archivo...'}
+                                        {f.status === 'done' && `${formatBytes(f.original)} · Completado`}
                                         {f.status === 'error' && (f.error || 'Error')}
                                     </p>
                                 </div>
-                                {f.savings && (
-                                    <Badge className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 rounded-full">
-                                        {f.savings}
-                                    </Badge>
-                                )}
+
                             </div>
                         ))}
                     </div>
@@ -788,7 +566,6 @@ export default function ArchivosPage() {
     const [search, setSearch] = useState('');
     const [showNuevoProyecto, setShowNuevoProyecto] = useState(false);
     const [showUpload, setShowUpload] = useState(false);
-    const [visorArchivo, setVisorArchivo] = useState<Archivo | null>(null);
 
     // Fetch proyectos
     const { data: proyectos, isLoading: loadingProyectos } = useQuery({
@@ -858,9 +635,7 @@ export default function ArchivosPage() {
     };
 
     const handleFileMenu = async (archivo: Archivo, action: 'view' | 'download' | 'share' | 'delete') => {
-        if (action === 'view') {
-            setVisorArchivo(archivo);
-        } else if (action === 'download') {
+        if (action === 'download') {
             try {
                 const { data, error } = await supabase.storage
                     .from('archivos-corporativos')
@@ -1102,7 +877,6 @@ export default function ArchivosPage() {
                                         <FileCard
                                             key={archivo.id}
                                             archivo={archivo}
-                                            onView={() => setVisorArchivo(archivo)}
                                             onMenu={action => handleFileMenu(archivo, action as any)}
                                         />
                                     ))}
@@ -1116,7 +890,6 @@ export default function ArchivosPage() {
                                                 <th className="text-left text-[10px] font-black uppercase text-slate-400 tracking-widest py-4 pl-6">Nombre</th>
                                                 <th className="text-left text-[10px] font-black uppercase text-slate-400 tracking-widest py-4">Tipo</th>
                                                 <th className="text-left text-[10px] font-black uppercase text-slate-400 tracking-widest py-4">Tamaño</th>
-                                                <th className="text-left text-[10px] font-black uppercase text-slate-400 tracking-widest py-4">Ahorro</th>
                                                 <th className="text-left text-[10px] font-black uppercase text-slate-400 tracking-widest py-4">Fecha</th>
                                                 <th className="text-center text-[10px] font-black uppercase text-slate-400 tracking-widest py-4">Vistas</th>
                                                 <th className="w-24"></th>
@@ -1125,12 +898,12 @@ export default function ArchivosPage() {
                                         <tbody>
                                             {filteredArchivos.map(archivo => {
                                                 const { icon: Icon, color } = getFileIcon(archivo.extension, archivo.tipo_mime);
-                                                const savings = getCompressionSavings(archivo.tamano_original, archivo.tamano_almacenado);
+
                                                 return (
                                                     <tr
                                                         key={archivo.id}
                                                         className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                                                        onClick={() => setVisorArchivo(archivo)}
+                                                        onClick={() => handleFileMenu(archivo, 'download')}
                                                     >
                                                         <td className="py-4 pl-6">
                                                             <div className="flex items-center gap-3">
@@ -1149,11 +922,7 @@ export default function ArchivosPage() {
                                                             </Badge>
                                                         </td>
                                                         <td className="text-sm font-bold text-slate-500">{formatBytes(archivo.tamano_original)}</td>
-                                                        <td>
-                                                            {savings ? (
-                                                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">{savings}</span>
-                                                            ) : <span className="text-slate-200">—</span>}
-                                                        </td>
+
                                                         <td className="text-[11px] font-bold text-slate-400">{getTimeAgo(archivo.created_at)}</td>
                                                         <td className="text-center">
                                                             <span className="text-sm font-black text-slate-300 flex items-center justify-center gap-1">
@@ -1162,7 +931,6 @@ export default function ArchivosPage() {
                                                         </td>
                                                         <td className="pr-4" onClick={(e) => e.stopPropagation()}>
                                                             <FileMenu
-                                                                onView={() => setVisorArchivo(archivo)}
                                                                 onDownload={() => handleFileMenu(archivo, 'download')}
                                                                 onShare={() => handleFileMenu(archivo, 'share')}
                                                                 onDelete={() => handleFileMenu(archivo, 'delete')}
@@ -1196,12 +964,7 @@ export default function ArchivosPage() {
                 />
             )}
 
-            {visorArchivo && (
-                <VisorModal
-                    archivo={visorArchivo}
-                    onClose={() => setVisorArchivo(null)}
-                />
-            )}
+
         </div>
     );
 }
