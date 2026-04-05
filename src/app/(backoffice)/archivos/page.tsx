@@ -676,8 +676,9 @@ export default function ArchivosPage() {
                     .select('token')
                     .eq('archivo_id', archivo.id)
                     .eq('activo', true)
-                    .gt('expira_at', new Date().toISOString())
+                    .gt('expira_en', new Date().toISOString())
                     .maybeSingle();
+
 
                 let token = existing?.token;
                 if (!token) {
@@ -685,9 +686,11 @@ export default function ArchivosPage() {
                     await supabase.from('archivo_links').insert({
                         archivo_id: archivo.id,
                         token,
-                        expira_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+                        tipo: 'solo_ver',
+                        expira_en: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
                         creado_por: (await supabase.auth.getUser()).data.user?.id
                     });
+
                 }
 
                 const url = `${window.location.origin}/ver/${token}`;
