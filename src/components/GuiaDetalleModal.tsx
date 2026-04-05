@@ -143,22 +143,22 @@ export function GuiaDetalleModal({ isOpen, onClose, guia }: GuiaDetalleModalProp
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    <TableRow className="border-b-2 border-slate-100">
-                                        <TableCell className="text-center font-bold text-slate-400">01</TableCell>
-                                        <TableCell className="text-center font-black text-slate-800">P-10023</TableCell>
-                                        <TableCell className="font-black text-slate-900 text-sm py-4">CARNE DE RES - CORTE PREMIUM REFRIGERADO</TableCell>
-                                        <TableCell className="text-right font-bold text-slate-500 pr-6 uppercase italic">Kilos</TableCell>
-                                        <TableCell className="text-right font-black text-slate-900 text-sm pr-6">150.00</TableCell>
-                                        <TableCell className="text-right font-black text-primary text-sm pr-6">150.00 KG</TableCell>
-                                    </TableRow>
-                                    <TableRow className="border-b-2 border-slate-100">
-                                        <TableCell className="text-center font-bold text-slate-400">02</TableCell>
-                                        <TableCell className="text-center font-black text-slate-800">P-10045</TableCell>
-                                        <TableCell className="font-black text-slate-900 text-sm py-4">HOT DOG DE TERNERA GOURMET X 500G</TableCell>
-                                        <TableCell className="text-right font-bold text-slate-500 pr-6 uppercase italic">Kilos</TableCell>
-                                        <TableCell className="text-right font-black text-slate-900 text-sm pr-6">40.00</TableCell>
-                                        <TableCell className="text-right font-black text-primary text-sm pr-6">20.00 KG</TableCell>
-                                    </TableRow>
+                                    {guia.detalles && guia.detalles.length > 0 ? (
+                                        guia.detalles.map((det: any, idx: number) => (
+                                            <TableRow key={idx} className="border-b-2 border-slate-100">
+                                                <TableCell className="text-center font-bold text-slate-400">{(idx + 1).toString().padStart(2, '0')}</TableCell>
+                                                <TableCell className="text-center font-black text-slate-800">{det.producto_codigo || det.sku || 'P-000'}</TableCell>
+                                                <TableCell className="font-black text-slate-900 text-sm py-4 uppercase">{det.producto_nombre || det.nombre || 'Producto'}</TableCell>
+                                                <TableCell className="text-right font-bold text-slate-500 pr-6 uppercase italic">{det.um || 'KILOS'}</TableCell>
+                                                <TableCell className="text-right font-black text-slate-900 text-sm pr-6">{Number(det.cantidad || 0).toFixed(2)}</TableCell>
+                                                <TableCell className="text-right font-black text-primary text-sm pr-6">{Number(det.peso_total || det.cantidad || 0).toFixed(2)} KG</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow className="border-b-2 border-slate-100">
+                                            <TableCell colSpan={6} className="text-center py-8 text-slate-400 italic">No hay detalles registrados para esta guía</TableCell>
+                                        </TableRow>
+                                    )}
                                 </TableBody>
                             </Table>
                         </div>

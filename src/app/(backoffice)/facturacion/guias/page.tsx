@@ -21,7 +21,7 @@ export default function GuiasRemisionPage() {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('comprobantes')
-                .select('*, clientes(razon_social, numero_documento)')
+                .select('*, clientes(razon_social, numero_documento), detalles:comprobante_items(*)')
                 .eq('tipo', '09')
                 .order('created_at', { ascending: false });
 

@@ -90,7 +90,8 @@ export default function DashboardPage() {
                         className="rounded-xl font-bold text-xs uppercase tracking-widest border-2"
                         onClick={async () => {
                             const dataToExport = [
-                                { "REPORTE": "RESUMEN GERENCIAL AGROCAR", "FECHA": new Date().toLocaleDateString() },
+                                { "CONCEPTO": "REPORTE", "VALOR": "RESUMEN GERENCIAL AGROCAR" },
+                                { "CONCEPTO": "FECHA", "VALOR": new Date().toLocaleDateString() },
                                 { "CONCEPTO": "VENTAS TOTALES DEL MES", "VALOR": stats?.pedidosTotal },
                                 { "CONCEPTO": "COBRANZA TOTAL EFECTIVA", "VALOR": stats?.pagosTotal },
                                 { "CONCEPTO": "DOCUMENTOS EMITIDOS (SUNAT)", "VALOR": stats?.comprobantesCount },

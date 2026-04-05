@@ -18,8 +18,11 @@ export const exportToExcel = async (data: any[], fileName: string = 'Reporte', s
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet(sheetName);
 
-        // 2. Extraer cabeceras
-        const headers = Object.keys(data[0]);
+        // 2. Extraer todas las cabeceras únicas de todo el set de datos
+        const allKeys = new Set<string>();
+        data.forEach(obj => Object.keys(obj).forEach(key => allKeys.add(key)));
+        const headers = Array.from(allKeys);
+
         worksheet.columns = headers.map(header => ({
             header: header.toUpperCase(),
             key: header,

@@ -257,14 +257,25 @@ export default function FacturacionBloquePage() {
                                                     size="sm"
                                                     variant="outline"
                                                     className="text-xs group-hover:bg-white"
-                                                    onClick={() => {
+                                                    onClick={async () => {
+                                                        const { data: items } = await supabase
+                                                            .from('pedido_items')
+                                                            .select('*, pedidos!inner(consolidado_id)')
+                                                            .eq('pedidos.consolidado_id', cons.id);
+
                                                         setSelectedGuia({
                                                             numero: cons.numero,
                                                             fecha_emision: cons.fecha,
-                                                            direccion_cliente: 'Destino Final (Consolidado)',
-                                                            razon_social_cliente: 'Varios Clientes (Bloque)',
-                                                            num_doc_cliente: '-',
-                                                            // Aquí se podrían pasar más datos si el consolidado los tiene
+                                                            direccion_cliente: 'Distribución Local (Puntos Varios)',
+                                                            razon_social_cliente: 'CONSOLIDADO DE DESPACHO',
+                                                            num_doc_cliente: cons.vehiculo_placa,
+                                                            detalles: items?.map(it => ({
+                                                                producto_codigo: 'P-' + (it.producto_id?.toString().split('-')[0] || '000'),
+                                                                producto_nombre: it.descripcion,
+                                                                um: it.unidad_medida,
+                                                                cantidad: it.cantidad,
+                                                                peso_total: it.cantidad // Simplificado
+                                                            })) || []
                                                         });
                                                         setIsGuiaModalOpen(true);
                                                     }}
