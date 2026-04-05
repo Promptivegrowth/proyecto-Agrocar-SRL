@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
     FolderOpen, Plus, Upload, Grid3X3, List, Search, Filter,
     File, FileText, FileSpreadsheet, FileImage, Film, Archive,
@@ -301,26 +301,38 @@ function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () =>
 
                 <DropdownMenu>
                     <DropdownMenuTrigger
-                        className="h-8 w-8 flex items-center justify-center rounded-xl border border-slate-100 hover:bg-slate-50 transition-all text-slate-400 focus:outline-none"
+                        render={<button className="h-8 w-8 flex items-center justify-center rounded-xl border border-slate-100 hover:bg-slate-50 transition-all text-slate-400 focus:outline-none" />}
                     >
                         <MoreHorizontal className="w-4 h-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 rounded-2xl p-2 border-slate-100 shadow-xl">
                         <DropdownMenuLabel className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-2 mb-1">Opciones de Archivo</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={onView} className="rounded-xl cursor-pointer py-2 focus:bg-slate-50">
+                        <DropdownMenuItem
+                            render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
+                            onClick={onView}
+                        >
                             <Eye className="w-3.5 h-3.5 mr-2 text-slate-400" />
                             <span className="text-xs font-bold text-slate-700">Previsualizar</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onMenu('download' as any)} className="rounded-xl cursor-pointer py-2 focus:bg-slate-50">
+                        <DropdownMenuItem
+                            render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
+                            onClick={() => onMenu('download' as any)}
+                        >
                             <Download className="w-3.5 h-3.5 mr-2 text-slate-400" />
                             <span className="text-xs font-bold text-slate-700">Descargar</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onMenu('share' as any)} className="rounded-xl cursor-pointer py-2 focus:bg-slate-50">
+                        <DropdownMenuItem
+                            render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
+                            onClick={() => onMenu('share' as any)}
+                        >
                             <Share2 className="w-3.5 h-3.5 mr-2 text-slate-400" />
                             <span className="text-xs font-bold text-slate-700">Compartir</span>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="my-1 bg-slate-50" />
-                        <DropdownMenuItem onClick={() => onMenu('delete' as any)} className="rounded-xl cursor-pointer py-2 focus:bg-red-50 text-red-600">
+                        <DropdownMenuItem
+                            render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-red-50 text-red-600 flex items-center" />}
+                            onClick={() => onMenu('delete' as any)}
+                        >
                             <Trash2 className="w-3.5 h-3.5 mr-2" />
                             <span className="text-xs font-black">Eliminar</span>
                         </DropdownMenuItem>
@@ -369,9 +381,10 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
         }
     }, [archivo, queryClient]);
 
-    useState(() => {
+    // Load visor when archivo changes
+    useEffect(() => {
         if (archivo) loadVisor();
-    });
+    }, [archivo, loadVisor]);
 
     if (!archivo) return null;
 
@@ -381,7 +394,7 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
 
     return (
         <Dialog open={!!archivo} onOpenChange={onClose}>
-            <DialogContent className="max-w-6xl w-[95vw] h-[90vh] p-0 overflow-hidden rounded-[2.5rem] border-0 shadow-2xl bg-[#0F172A] flex flex-col">
+            <DialogContent className="max-w-6xl sm:max-w-none w-[95vw] h-[90vh] p-0 overflow-hidden rounded-[2.5rem] border-0 shadow-2xl bg-[#0F172A] flex flex-col">
                 {/* Header */}
                 <div className="p-6 flex items-center justify-between bg-gradient-to-r from-[#1A2C45] to-[#243B55] text-white z-10 shadow-lg shrink-0">
                     <div className="flex items-center gap-4">
@@ -1127,36 +1140,40 @@ export default function ArchivosPage() {
                                                         <td className="pr-4">
                                                             <DropdownMenu>
                                                                 <DropdownMenuTrigger
-                                                                    className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all opacity-0 group-hover:opacity-100 focus:outline-none"
-                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    render={<button className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all opacity-0 group-hover:opacity-100 focus:outline-none" />}
+                                                                    onClick={(e) => { e.stopPropagation(); }}
                                                                 >
                                                                     <MoreHorizontal className="w-4 h-4 text-slate-400" />
                                                                 </DropdownMenuTrigger>
                                                                 <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl p-2 border-0">
                                                                     <DropdownMenuItem
-                                                                        className="rounded-xl h-10 font-bold text-xs cursor-pointer"
-                                                                        onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'view'); }}
+                                                                        render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
+                                                                        onClick={(e) => { e.stopPropagation(); setVisorArchivo(archivo); }}
                                                                     >
-                                                                        <Eye className="w-4 h-4 mr-3" /> Ver Archivo
+                                                                        <Eye className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                                                                        <span className="text-xs font-bold text-slate-700">Previsualizar</span>
                                                                     </DropdownMenuItem>
                                                                     <DropdownMenuItem
-                                                                        className="rounded-xl h-10 font-bold text-xs cursor-pointer"
+                                                                        render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
                                                                         onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'download'); }}
                                                                     >
-                                                                        <Download className="w-4 h-4 mr-3" /> Descargar
+                                                                        <Download className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                                                                        <span className="text-xs font-bold text-slate-700">Descargar</span>
                                                                     </DropdownMenuItem>
                                                                     <DropdownMenuItem
-                                                                        className="rounded-xl h-10 font-bold text-xs cursor-pointer"
+                                                                        render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
                                                                         onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'share'); }}
                                                                     >
-                                                                        <Share2 className="w-4 h-4 mr-3" /> Compartir
+                                                                        <Share2 className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                                                                        <span className="text-xs font-bold text-slate-700">Compartir</span>
                                                                     </DropdownMenuItem>
                                                                     <DropdownMenuSeparator className="my-1" />
                                                                     <DropdownMenuItem
-                                                                        className="rounded-xl h-10 font-bold text-xs text-red-500 cursor-pointer"
+                                                                        render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-red-50 text-red-600 flex items-center" />}
                                                                         onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'delete'); }}
                                                                     >
-                                                                        <Trash2 className="w-4 h-4 mr-3" /> Eliminar
+                                                                        <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                                                        <span className="text-xs font-black">Eliminar</span>
                                                                     </DropdownMenuItem>
                                                                 </DropdownMenuContent>
                                                             </DropdownMenu>
