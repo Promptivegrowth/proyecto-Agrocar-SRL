@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
     PackageSearch, Users, Truck, Store, ListOrdered, DollarSign,
-    MapPin, BarChart3, BookOpen, Settings, Home, HardDrive, Receipt
+    MapPin, BarChart3, BookOpen, Settings, Home, HardDrive, Receipt, FolderOpen
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -48,6 +48,7 @@ export default function Sidebar() {
             group: 'Gestión y Control', items: [
                 { name: 'Supervisión GPS', href: '/supervision/mapa', icon: MapPin },
                 { name: 'Control de Asistencia', href: '/supervision/asistencia', icon: Users },
+                { name: 'Archivos', href: '/archivos', icon: FolderOpen },
                 { name: 'Reportes', href: '/reportes/dashboard', icon: BarChart3 },
                 { name: 'Contabilidad (PLE)', href: '/contabilidad/registro-ventas', icon: BookOpen },
                 { name: 'Configuración', href: '/configuracion/empresa', icon: Settings },
