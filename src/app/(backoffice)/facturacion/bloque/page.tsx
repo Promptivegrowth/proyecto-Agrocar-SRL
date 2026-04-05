@@ -16,6 +16,7 @@ import {
     Printer
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { GuiaDetalleModal } from '@/components/GuiaDetalleModal';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +39,8 @@ export default function FacturacionBloquePage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedConsolidado, setSelectedConsolidado] = useState<any>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [isGuiaModalOpen, setIsGuiaModalOpen] = useState(false);
+    const [selectedGuia, setSelectedGuia] = useState<any>(null);
 
     // 1. Fetch Consolidados con lógica de join manual para evitar error 400 por falta de FK en Pedidos
     const { data: consolidados, isLoading } = useQuery({
@@ -250,7 +253,22 @@ export default function FacturacionBloquePage() {
                                                     Emitir Bloque <ChevronRight className="w-3 h-3 ml-1" />
                                                 </Button>
                                             ) : (
-                                                <Button size="sm" variant="outline" className="text-xs group-hover:bg-white">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="text-xs group-hover:bg-white"
+                                                    onClick={() => {
+                                                        setSelectedGuia({
+                                                            numero: cons.numero,
+                                                            fecha_emision: cons.fecha,
+                                                            direccion_cliente: 'Destino Final (Consolidado)',
+                                                            razon_social_cliente: 'Varios Clientes (Bloque)',
+                                                            num_doc_cliente: '-',
+                                                            // Aquí se podrían pasar más datos si el consolidado los tiene
+                                                        });
+                                                        setIsGuiaModalOpen(true);
+                                                    }}
+                                                >
                                                     <Printer className="w-3 h-3 mr-2" /> Guía Remisión
                                                 </Button>
                                             )}
@@ -378,6 +396,12 @@ export default function FacturacionBloquePage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <GuiaDetalleModal
+                isOpen={isGuiaModalOpen}
+                onClose={setIsGuiaModalOpen}
+                guia={selectedGuia}
+            />
         </div>
     );
 }

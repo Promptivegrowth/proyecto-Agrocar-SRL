@@ -43,28 +43,65 @@ export const exportToExcel = async (data: any[], fileName: string = 'Reporte', s
             };
         });
 
-        // 3. Añadir filas
-        worksheet.addRows(data);
+        // 3. Estilizar Filas de Datos (Premium Zebra Style)
+        data.forEach((item, index) => {
+            const row = worksheet.addRow(item);
+            const isAlternate = index % 2 !== 0;
 
-        // Estilizar filas de datos
-        worksheet.eachRow((row, rowNumber) => {
-            if (rowNumber === 1) return; // Saltar cabecera
             row.eachCell((cell) => {
+                cell.font = { name: 'Arial', size: 10, color: { argb: 'FF334155' } }; // Slate-700
                 cell.border = {
-                    top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-                    left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-                    bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-                    right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+                    top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                    left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                    bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                    right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
                 };
+
+                if (isAlternate) {
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: 'FFF8FAFC' } // Slate-50
+                    };
+                }
+
                 cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
 
-                // Formatear números si parecen moneda o cantidades
+                // Formatear números
                 if (typeof cell.value === 'number') {
                     cell.numFmt = '#,##0.00';
+                    cell.alignment = { horizontal: 'right' };
+                    // Resaltar montos positivos
+                    if (cell.value > 0) {
+                        cell.font = { ...cell.font, color: { argb: 'FF059669' }, bold: true }; // Green-600
+                    }
                 }
             });
-            row.height = 20;
+            row.height = 22;
         });
+
+        // 4. Ajustar ancho de columnas dinámicamente
+        worksheet.columns.forEach(column => {
+            let maxColumnLength = 0;
+            column.eachCell!({ includeEmpty: true }, (cell) => {
+                const columnLength = cell.value ? cell.value.toString().length : 10;
+                if (columnLength > maxColumnLength) {
+                    maxColumnLength = columnLength;
+                }
+            });
+            column.width = maxColumnLength < 12 ? 15 : maxColumnLength + 5;
+        });
+
+        // Borde final de la tabla
+        const lastRow = worksheet.lastRow;
+        if (lastRow) {
+            lastRow.eachCell((cell) => {
+                cell.border = {
+                    ...cell.border,
+                    bottom: { style: 'medium', color: { argb: 'FF0F172A' } }
+                };
+            });
+        }
 
         // 4. Generar el archivo y descargar
         const buffer = await workbook.xlsx.writeBuffer();
