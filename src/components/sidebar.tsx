@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
     PackageSearch, Users, Truck, Store, ListOrdered, DollarSign,
-    MapPin, BarChart3, BookOpen, Settings, Home, HardDrive
+    MapPin, BarChart3, BookOpen, Settings, Home, HardDrive, Receipt
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -26,6 +26,7 @@ export default function Sidebar() {
                     <li><Link href="/despacho" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><Truck className="mr-3 h-5 w-5" /> Despacho</Link></li>
                     <li><Link href="/despacho/flota" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors text-secondary/80 hover:text-secondary"><MapPin className="mr-3 h-5 w-5 text-secondary/60" /> Gestión de Flota</Link></li>
                     <li><Link href="/facturacion/bloque" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><ListOrdered className="mr-3 h-5 w-5" /> Facturación</Link></li>
+                    <li><Link href="/facturacion/recibos" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><Receipt className="mr-3 h-5 w-5" /> Recibos de Caja</Link></li>
                     <li><Link href="/cobranzas/cuentas-corrientes" className="flex items-center px-4 py-2 hover:bg-white/10 hover:text-secondary transition-colors"><DollarSign className="mr-3 h-5 w-5" /> Cobranzas</Link></li>
 
                     <li className="pt-4 pb-1 px-4 text-xs font-semibold text-primary-foreground/50 uppercase">Gestión y Control</li>

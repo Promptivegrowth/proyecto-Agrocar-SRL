@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { registrarPago } from '../actions';
+import { ReciboPagoModal } from '@/components/ReciboPagoModal';
 
 function CuentasCorrientesContent() {
     const params = useSearchParams();
@@ -32,6 +33,8 @@ function CuentasCorrientesContent() {
         monto: 0,
         referencia: ''
     });
+    const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+    const [generatedReceipt, setGeneratedReceipt] = useState<any>(null);
 
     const { data: clientes, isLoading: loadingClients } = useQuery({
         queryKey: ['clientes-cc-search'],
@@ -118,11 +121,27 @@ function CuentasCorrientesContent() {
             if (result.error) throw new Error(result.error);
             return result;
         },
-        onSuccess: () => {
+        onSuccess: (data: any) => {
             queryClient.invalidateQueries({ queryKey: ['deudas', clienteId || ''] });
             toast.success("Cobranza registrada correctamente.");
             setIsPaymentDialogOpen(false);
             setPaymentData({ metodo: 'yape', monto: 0, referencia: '' });
+
+            // Abrir el recibo generado
+            if (data?.recibo) {
+                setGeneratedReceipt({
+                    numero_recibo: data.recibo.numero,
+                    fecha: new Date().toLocaleDateString(),
+                    cliente_razon_social: data.recibo.razon_social,
+                    cliente_doc: data.recibo.documento,
+                    monto: data.recibo.monto,
+                    metodo_pago: paymentData.metodo,
+                    referencia: paymentData.referencia,
+                    comprobante_afectado: data.recibo.original,
+                    monto_letras: data.recibo.letras
+                });
+                setIsReceiptOpen(true);
+            }
         },
         onError: (error: any) => {
             toast.error("Error al registrar pago: " + error.message);
@@ -363,6 +382,12 @@ function CuentasCorrientesContent() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ReciboPagoModal
+                isOpen={isReceiptOpen}
+                onClose={() => setIsReceiptOpen(false)}
+                pago={generatedReceipt}
+            />
         </div>
     );
 }
