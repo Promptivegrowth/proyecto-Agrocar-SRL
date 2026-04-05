@@ -159,6 +159,7 @@ export default function CajaPage() {
                                         <TableHead>Hora</TableHead>
                                         <TableHead>Cliente</TableHead>
                                         <TableHead>Método</TableHead>
+                                        <TableHead>Ref / Recibo</TableHead>
                                         <TableHead className="text-right">Monto</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -175,6 +176,9 @@ export default function CajaPage() {
                                                 <Badge variant="outline" className={`text-[10px] font-black uppercase ${p.metodo_pago === 'efectivo' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
                                                     {p.metodo_pago}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-[10px] font-bold text-slate-500 italic truncate max-w-[150px]">
+                                                {p.observaciones || '—'}
                                             </TableCell>
                                             <TableCell className="text-right font-black text-gray-900">S/ {p.monto.toFixed(2)}</TableCell>
                                         </TableRow>

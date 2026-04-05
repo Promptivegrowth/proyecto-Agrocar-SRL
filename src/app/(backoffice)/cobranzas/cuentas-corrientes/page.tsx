@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { registrarPago } from '../actions';
 import { ReciboPagoModal } from '@/components/ReciboPagoModal';
+import { Hash } from 'lucide-react';
 
 function CuentasCorrientesContent() {
     const params = useSearchParams();
@@ -231,7 +232,7 @@ function CuentasCorrientesContent() {
                         </div>
                         <div className="text-right">
                             <div className="text-sm font-medium text-gray-500">Línea de Crédito: <span className="text-gray-900">S/ {cliente?.limite_credito?.toFixed(2) || '0.00'}</span></div>
-                            <div className="text-sm font-medium text-primary mt-1">Crédito Disponible: <span className="font-bold text-lg">S/ {cliente?.limite_credito?.toFixed(2) || '0.00'}</span></div>
+                            <div className="text-sm font-medium text-primary mt-1">Crédito Disponible: <span className="font-bold text-lg">S/ {(Number(cliente?.limite_credito || 0) - Number(deudas?.reduce((acc, d) => acc + d.saldo, 0) || 0)).toFixed(2)}</span></div>
                         </div>
                     </div>
                 </CardHeader>
@@ -308,64 +309,58 @@ function CuentasCorrientesContent() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="metodo">Método de Pago</Label>
-                            <Select
-                                value={paymentData.metodo}
-                                onValueChange={(v) => setPaymentData({ ...paymentData, metodo: v || '' })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Seleccione método" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="yape">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-purple-500" /> Yape
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="pling">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-blue-400" /> Pling
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="efectivo">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-green-500" /> Efectivo
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="transferencia">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-orange-500" /> Transferencia
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="monto">Monto a Cobrar (S/)</Label>
-                            <Input
-                                id="monto"
-                                type="number"
-                                step="0.01"
-                                value={paymentData.monto}
-                                onChange={(e) => setPaymentData({ ...paymentData, monto: parseFloat(e.target.value) })}
-                                className="font-bold text-lg"
-                            />
-                            <p className="text-[10px] text-gray-500">Saldo pendiente: S/ {selectedComp?.saldo?.toFixed(2)}</p>
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="referencia">Nro. de Operación / Referencia</Label>
-                            <Input
-                                id="referencia"
-                                placeholder="Ej: 123456"
-                                value={paymentData.referencia}
-                                onChange={(e) => setPaymentData({ ...paymentData, referencia: e.target.value })}
-                            />
+                    <div className="grid gap-2">
+                        <Label className="text-xs font-bold uppercase text-gray-400">Método de Pago</Label>
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                            {[
+                                { id: 'yape', label: 'Yape', icon: <Wallet className="w-5 h-5" />, color: 'border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700' },
+                                { id: 'plin', label: 'Plin', icon: <Wallet className="w-5 h-5 text-teal-600" />, color: 'border-teal-200 bg-teal-50 hover:bg-teal-100 text-teal-700' },
+                                { id: 'efectivo', label: 'Efectivo', icon: <Banknote className="w-5 h-5 text-emerald-600" />, color: 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700' },
+                                { id: 'transferencia', label: 'Transferencia', icon: <Landmark className="w-5 h-5 text-blue-600" />, color: 'border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700' }
+                            ].map((m) => (
+                                <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => setPaymentData({ ...paymentData, metodo: m.id })}
+                                    className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 text-left ${paymentData.metodo === m.id ? m.color + ' ring-2 ring-offset-1 ring-slate-900 scale-[1.02]' : 'border-gray-100 hover:border-gray-200 bg-white text-gray-500'}`}
+                                >
+                                    <div className={`p-2 rounded-lg bg-white shadow-sm ${paymentData.metodo === m.id ? 'text-inherit' : 'text-gray-400'}`}>
+                                        {m.icon}
+                                    </div>
+                                    <span className="font-black uppercase text-[10px] tracking-widest">{m.label}</span>
+                                </button>
+                            ))}
                         </div>
                     </div>
+
+                    <div className="grid gap-2 mt-4">
+                        <Label htmlFor="monto">Monto a Pagar (S/)</Label>
+                        <Input
+                            id="monto"
+                            type="number"
+                            step="0.01"
+                            value={paymentData.monto}
+                            onChange={(e) => setPaymentData({ ...paymentData, monto: parseFloat(e.target.value) })}
+                            className="font-bold text-3xl h-14 text-center border-2 border-slate-900 focus:ring-slate-900"
+                        />
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Saldo pendiente: S/ {selectedComp?.saldo?.toFixed(2)}</p>
+                    </div>
+
+                    {paymentData.metodo !== 'efectivo' && (
+                        <div className="grid gap-2 animate-in slide-in-from-top-2 duration-300">
+                            <Label htmlFor="referencia" className="font-black text-[10px] uppercase tracking-widest text-gray-400">Nro. de Operación / Referencia</Label>
+                            <div className="relative">
+                                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                    id="referencia"
+                                    placeholder="Ingrese el número de confirmación"
+                                    className="pl-10 h-11 font-bold bg-slate-50 border-slate-200 shadow-inner"
+                                    value={paymentData.referencia}
+                                    onChange={(e) => setPaymentData({ ...paymentData, referencia: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>

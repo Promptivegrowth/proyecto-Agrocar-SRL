@@ -55,24 +55,8 @@ export async function registrarPago(data: {
             return { error: 'Debe abrir caja antes de registrar cobros en efectivo.' }
         }
 
-        // 2. Insert payment
-        const { data: newPago, error: pError } = await supabase
-            .from('pagos')
-            .insert([{
-                empresa_id: empresaId,
-                caja_id: cajaActiva?.id || null,
-                comprobante_id: data.comprobanteId,
-                cliente_id: data.cliente_id,
-                monto: data.monto,
-                metodo_pago: data.metodo,
-                usuario_cobrador_id: user.id,
-                fecha: new Date().toISOString().split('T')[0],
-                observaciones: data.referencia ? `Operación: ${data.referencia}` : ''
-            }])
-            .select()
-            .single()
-
-        if (pError) throw pError
+        // 2. Insert payment (Temporalin without receipt number, will update later if needed, but we can generate number first)
+        // ... (moving receipt number generation UP)
 
         // 3. GENERAR COMPROBANTE DE PAGO (RECIBO DE CAJA - RC)
         // Obtener serie para Recibos
@@ -80,7 +64,7 @@ export async function registrarPago(data: {
             .from('series_comprobantes')
             .select('*')
             .eq('empresa_id', empresaId)
-            .eq('tipo', 'RC') // Tipo interno Recibo de Caja
+            .eq('tipo', 'RC')
             .eq('serie', 'RC01')
             .single();
 
@@ -101,6 +85,26 @@ export async function registrarPago(data: {
 
         const nextCorrRC = (serieRC?.correlativo_actual || 0) + 1;
         const numCompletoRC = `RC01-${String(nextCorrRC).padStart(8, '0')}`;
+
+        const { data: newPago, error: pError } = await supabase
+            .from('pagos')
+            .insert([{
+                empresa_id: empresaId,
+                caja_id: cajaActiva?.id || null,
+                comprobante_id: data.comprobanteId,
+                cliente_id: data.cliente_id,
+                monto: data.monto,
+                metodo_pago: data.metodo,
+                usuario_cobrador_id: user.id,
+                fecha: new Date().toISOString().split('T')[0],
+                observaciones: `${numCompletoRC} | ${data.referencia || 'S/Ref'}`
+            }])
+            .select()
+            .single()
+
+        if (pError) throw pError
+
+        // ... (rest of it stays similar but using the pre-generated number)
 
         // Obtener datos del comprobante original para los detalles del recibo
         const { data: originalComp } = await supabase
