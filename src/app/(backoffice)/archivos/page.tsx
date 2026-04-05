@@ -300,14 +300,10 @@ function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () =>
                 </Button>
 
                 <DropdownMenu>
-                    <DropdownMenuTrigger>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 w-8 p-0 rounded-xl border-slate-100 hover:bg-slate-50"
-                        >
-                            <MoreHorizontal className="w-4 h-4 text-slate-400" />
-                        </Button>
+                    <DropdownMenuTrigger
+                        className="h-8 w-8 flex items-center justify-center rounded-xl border border-slate-100 hover:bg-slate-50 transition-all text-slate-400 focus:outline-none"
+                    >
+                        <MoreHorizontal className="w-4 h-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 rounded-2xl p-2 border-slate-100 shadow-xl">
                         <DropdownMenuLabel className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-2 mb-1">Opciones de Archivo</DropdownMenuLabel>
@@ -346,10 +342,14 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
         if (!archivo) return;
         setLoading(true);
         try {
-            const path = archivo.storage_path;
+            // Ensure path doesn't have leading slash for the SDK
+            const path = archivo.storage_path.startsWith('/')
+                ? archivo.storage_path.substring(1)
+                : archivo.storage_path;
+
             const { data, error } = await supabase.storage
                 .from('archivos-corporativos')
-                .createSignedUrl(path, 3600); // 1 hour
+                .createSignedUrl(path, 3600);
 
             if (error) throw error;
             setSignedUrl(data.signedUrl);
@@ -381,17 +381,18 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
 
     return (
         <Dialog open={!!archivo} onOpenChange={onClose}>
-            <DialogContent className="max-w-5xl w-full h-[90vh] p-0 rounded-[2rem] overflow-hidden border-0 shadow-2xl">
-                <DialogHeader className="px-8 py-5 border-b bg-[#1A2C45] flex flex-row items-center justify-between">
+            <DialogContent className="max-w-6xl w-[95vw] h-[90vh] p-0 overflow-hidden rounded-[2.5rem] border-0 shadow-2xl bg-[#0F172A] flex flex-col">
+                {/* Header */}
+                <div className="p-6 flex items-center justify-between bg-gradient-to-r from-[#1A2C45] to-[#243B55] text-white z-10 shadow-lg shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="bg-white/10 p-2.5 rounded-xl">
                             <FileText className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <DialogTitle className="text-white font-black text-sm tracking-tight leading-tight">
+                            <h3 className="font-black text-sm tracking-tight leading-tight">
                                 {archivo.nombre_original}
-                            </DialogTitle>
-                            <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                            </h3>
+                            <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-0.5">
                                 {formatBytes(archivo.tamano_original)} · {(archivo.extension || '').toUpperCase()} · 👁 {archivo.total_vistas + 1} vistas
                             </p>
                         </div>
@@ -404,11 +405,12 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
                     >
                         <XCircle className="w-5 h-5" />
                     </Button>
-                </DialogHeader>
+                </div>
 
-                <div className="flex-1 overflow-hidden bg-slate-900 relative" style={{ height: 'calc(90vh - 80px)' }}>
+                {/* Content Area */}
+                <div className="flex-1 overflow-hidden bg-slate-900 relative">
                     {loading && (
-                        <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20">
                             <div className="flex flex-col items-center gap-4 text-white/50">
                                 <Loader2 className="w-10 h-10 animate-spin" />
                                 <p className="text-xs font-black uppercase tracking-widest">Cargando visor seguro...</p>
@@ -417,23 +419,20 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
                     )}
 
                     {signedUrl && !loading && (
-                        <>
+                        <div className="w-full h-full">
                             {isImage && (
-                                <div className="w-full h-full flex items-center justify-center p-8 overflow-auto"
-                                    onContextMenu={e => e.preventDefault()}
-                                >
-                                    {/* Watermark overlay */}
-                                    <div className="relative select-none">
+                                <div className="w-full h-full flex items-center justify-center p-8 overflow-auto bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-800 to-slate-900">
+                                    <div className="relative select-none group">
                                         <img
                                             src={signedUrl}
                                             alt={archivo.nombre_original}
-                                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl border border-white/5 transition-transform duration-500 group-hover:scale-[1.01]"
                                             draggable={false}
                                             style={{ userSelect: 'none', WebkitUserDrag: 'none' } as any}
                                         />
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                            <p className="text-white/10 font-black text-3xl uppercase tracking-widest rotate-[-30deg] whitespace-nowrap select-none">
-                                                AGROCAR SRL · CONFIDENCIAL
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                                            <p className="text-white font-black text-4xl uppercase tracking-[1em] rotate-[-30deg] whitespace-nowrap select-none">
+                                                AGROCAR SRL
                                             </p>
                                         </div>
                                     </div>
@@ -450,7 +449,7 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
                             )}
 
                             {isText && (
-                                <div className="w-full h-full overflow-auto p-8">
+                                <div className="w-full h-full p-8 bg-slate-950">
                                     <iframe
                                         src={signedUrl}
                                         className="w-full h-full bg-white rounded-2xl shadow-xl border-0"
@@ -460,23 +459,36 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
                             )}
 
                             {!isImage && !isPDF && !isText && (
-                                <div className="flex items-center justify-center h-full text-white/50">
-                                    <div className="text-center space-y-4">
-                                        <FileText className="w-16 h-16 mx-auto opacity-30" />
-                                        <p className="font-black uppercase text-sm tracking-widest">Vista previa no disponible</p>
-                                        <p className="text-xs opacity-50">Tipo: {archivo.extension?.toUpperCase()} · {formatBytes(archivo.tamano_original)}</p>
+                                <div className="flex items-center justify-center h-full text-white/50 bg-slate-900">
+                                    <div className="text-center space-y-4 max-w-sm px-6">
+                                        <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/10">
+                                            <FileText className="w-10 h-10 text-white/20" />
+                                        </div>
+                                        <p className="font-black uppercase text-sm tracking-[0.2em] text-white">Vista previa no disponible</p>
+                                        <p className="text-xs text-slate-500 leading-relaxed">
+                                            Este formato no puede previsualizarse en el navegador de forma nativa.
+                                            Por favor, descargue el archivo para verlo.
+                                        </p>
+                                        <Button
+                                            variant="outline"
+                                            className="mt-6 rounded-2xl border-white/10 text-white hover:bg-white/10 h-10 px-8 font-bold"
+                                            onClick={() => {/* Trigger download maybe? but it's easier via the menu */ }}
+                                        >
+                                            <Download className="w-4 h-4 mr-2" /> Descargar Archivo
+                                        </Button>
                                     </div>
                                 </div>
                             )}
-                        </>
+                        </div>
                     )}
 
                     {!signedUrl && !loading && (
                         <div className="flex items-center justify-center h-full text-white/50">
                             <div className="text-center">
-                                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-30 text-red-400" />
+                                <p className="text-red-400 font-bold mb-4">No se pudo generar el enlace seguro</p>
                                 <Button onClick={loadVisor} className="bg-white/10 hover:bg-white/20 text-white rounded-xl">
-                                    Cargar visor
+                                    Reintentar carga
                                 </Button>
                             </div>
                         </div>
@@ -1114,13 +1126,11 @@ export default function ArchivosPage() {
                                                         </td>
                                                         <td className="pr-4">
                                                             <DropdownMenu>
-                                                                <DropdownMenuTrigger>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all opacity-0 group-hover:opacity-100 p-0"
-                                                                    >
-                                                                        <MoreHorizontal className="w-4 h-4 text-slate-400" />
-                                                                    </Button>
+                                                                <DropdownMenuTrigger
+                                                                    className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all opacity-0 group-hover:opacity-100 focus:outline-none"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <MoreHorizontal className="w-4 h-4 text-slate-400" />
                                                                 </DropdownMenuTrigger>
                                                                 <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl p-2 border-0">
                                                                     <DropdownMenuItem
