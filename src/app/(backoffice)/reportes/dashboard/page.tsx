@@ -7,7 +7,6 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
 
 const COLORS = ['#1A2C45', '#F6C519', '#10B981', '#E11D48', '#8B5CF6'];
@@ -64,31 +63,138 @@ export default function ReportesDashboardPage() {
     });
 
     const handleExportPDF = async () => {
-        const element = document.getElementById('report-container');
-        if (!element) return;
-
-        toast.info("Generando PDF, por favor espere...");
+        toast.info("Generando reporte PDF profesional...");
 
         try {
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                windowWidth: 1200 // Ensure consistent layout
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+
+            // --- Background Header ---
+            pdf.setFillColor(26, 44, 69); // #1A2C45 (Primary)
+            pdf.rect(0, 0, pageWidth, 45, 'F');
+
+            // --- Logo/Brand ---
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(24);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text("AGROCAR SRL", 20, 20);
+
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(246, 197, 25); // #F6C519 (Secondary)
+            pdf.text("Soluciones Agroindustriales - Reporte Gerencial", 20, 28);
+
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(9);
+            pdf.text(`Fecha y Hora: ${new Date().toLocaleString()}`, 20, 36);
+            pdf.text(`Generado por: Inteligencia de Negocios ERP`, 20, 41);
+
+            // --- Section: Executive Summary ---
+            let y = 60;
+            pdf.setTextColor(26, 44, 69);
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text("RESUMEN EJECUTIVO DE INDICADORES", 20, y);
+            pdf.setDrawColor(246, 197, 25);
+            pdf.setLineWidth(1);
+            pdf.line(20, y + 2, 80, y + 2);
+
+            y += 15;
+
+            // Metrics Layout (Simulated Cards)
+            const metrics = [
+                { label: "UTILIDAD ESTIMADA", value: "S/ 12,450.00" },
+                { label: "TICKET PROMEDIO", value: "S/ 1,240.00" },
+                { label: "ROTACIÓN STOCK", value: "85%" }
+            ];
+
+            metrics.forEach((m, i) => {
+                const x = 20 + (i * 60);
+                pdf.setFillColor(248, 250, 252); // slate-50
+                pdf.roundedRect(x, y, 55, 30, 2, 2, 'F');
+                pdf.setDrawColor(226, 232, 240); // slate-200
+                pdf.setLineWidth(0.2);
+                pdf.roundedRect(x, y, 55, 30, 2, 2, 'D');
+
+                pdf.setTextColor(100, 116, 139); // slate-500
+                pdf.setFontSize(8);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(m.label, x + 5, y + 10);
+
+                pdf.setTextColor(26, 44, 69);
+                pdf.setFontSize(14);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(m.value, x + 5, y + 22);
             });
 
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgProps = pdf.getImageProperties(imgData);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            y += 50;
 
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`reporte-gerencial-${new Date().toISOString().split('T')[0]}.pdf`);
-            toast.success("PDF exportado correctamente");
+            // --- Section: Sales Table ---
+            pdf.setTextColor(26, 44, 69);
+            pdf.setFontSize(14);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text("DETALLE DE VENTAS (ÚLTIMOS 7 DÍAS)", 20, y);
+            y += 8;
+
+            // Table Header
+            pdf.setFillColor(26, 44, 69);
+            pdf.rect(20, y, pageWidth - 40, 10, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(10);
+            pdf.text("FECHA PERIODO", 25, y + 6.5);
+            pdf.text("RENDIMIENTO (S/)", pageWidth - 60, y + 6.5);
+            y += 10;
+
+            // Table Rows
+            salesData?.forEach((sale: any, index: number) => {
+                if (index % 2 === 0) pdf.setFillColor(249, 250, 251);
+                else pdf.setFillColor(255, 255, 255);
+
+                pdf.rect(20, y, pageWidth - 40, 8, 'F');
+                pdf.setTextColor(51, 65, 85);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text(sale.name, 25, y + 5.5);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(`S/ ${sale.ventas.toLocaleString()}`, pageWidth - 60, y + 5.5);
+
+                y += 8;
+            });
+
+            y += 15;
+
+            // --- Section: Categories ---
+            pdf.setTextColor(26, 44, 69);
+            pdf.setFontSize(14);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text("DISTRIBUCIÓN POR CATEGORÍAS", 20, y);
+            y += 8;
+
+            categoryData?.forEach((cat: any) => {
+                pdf.setFillColor(248, 250, 252);
+                pdf.rect(20, y, pageWidth - 40, 8, 'F');
+                pdf.setTextColor(51, 65, 85);
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(10);
+                pdf.text(cat.name, 25, y + 5.5);
+
+                const percentage = (cat.value / (categoryData.reduce((a: any, b: any) => a + b.value, 0)) * 100).toFixed(1);
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(`S/ ${cat.value.toLocaleString()} (${percentage}%)`, pageWidth - 60, y + 5.5);
+
+                y += 8;
+            });
+
+            // Footer
+            pdf.setFont('helvetica', 'italic');
+            pdf.setFontSize(8);
+            pdf.setTextColor(148, 163, 184);
+            pdf.text("Confidencial - Propiedad de Agrocar SRL. Documento generado automáticamente.", pageWidth / 2, 285, { align: 'center' });
+
+            pdf.save(`reporte-agrocar-${new Date().toISOString().split('T')[0]}.pdf`);
+            toast.success("¡Reporte generado con éxito!");
         } catch (error) {
-            console.error('PDF Export Error:', error);
-            toast.error("Error al generar el PDF");
+            console.error('Error generando PDF:', error);
+            toast.error("Hubo un fallo al construir el PDF");
         }
     };
 
