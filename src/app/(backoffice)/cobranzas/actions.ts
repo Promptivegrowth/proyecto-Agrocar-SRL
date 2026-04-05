@@ -125,25 +125,29 @@ export async function registrarPago(data: {
                 fecha_emision: new Date().toISOString().split('T')[0],
                 pedido_id: null,
                 cliente_id: data.cliente_id,
-                tipo_doc_cliente: '-',
-                num_doc_cliente: originalComp?.num_doc_cliente,
-                razon_social_cliente: originalComp?.razon_social_cliente,
+                tipo_doc_cliente: 'DNI',
+                num_doc_cliente: originalComp?.num_doc_cliente || '-',
+                razon_social_cliente: originalComp?.razon_social_cliente || '-',
                 direccion_cliente: 'COBRANZA DE DOCUMENTO: ' + (originalComp?.numero_completo || ''),
                 moneda: originalComp?.moneda || 'PEN',
-                total: data.monto,
-                monto_pagado: data.monto,
-                base_imponible: 0,
+                subtotal: data.monto,
+                base_imponible: data.monto,
                 igv: 0,
+                descuento: 0,
+                total: data.monto,
+                condicion_pago: 'contado',
+                monto_pagado: data.monto,
                 estado_pago: 'pagado',
-                sunat_estado: 'interno',
+                sunat_estado: 'pendiente',
                 usuario_emisor_id: user.id
             })
             .select()
             .single();
 
         if (rcError) {
-            console.error('CRITICAL: Error creating Recibo de Caja doc:', rcError);
-            // We don't throw yet to allow the payment itself to finish, but we log heavily
+            console.error('CRITICAL: Error creating Recibo de Caja doc:', JSON.stringify(rcError));
+            // Return error so it surfaces to the user
+            throw new Error('Error al crear el Recibo de Caja: ' + rcError.message);
         }
 
         // Actualizar correlativo de serie RC
