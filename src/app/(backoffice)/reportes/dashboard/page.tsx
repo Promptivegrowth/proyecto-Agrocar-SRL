@@ -6,6 +6,9 @@ import { Download, PieChart as PieChartIcon, TrendingUp, DollarSign, Package } f
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { toast } from 'sonner';
 
 const COLORS = ['#1A2C45', '#F6C519', '#10B981', '#E11D48', '#8B5CF6'];
 
@@ -60,14 +63,43 @@ export default function ReportesDashboardPage() {
         }
     });
 
+    const handleExportPDF = async () => {
+        const element = document.getElementById('report-container');
+        if (!element) return;
+
+        toast.info("Generando PDF, por favor espere...");
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                windowWidth: 1200 // Ensure consistent layout
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgProps = pdf.getImageProperties(imgData);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`reporte-gerencial-${new Date().toISOString().split('T')[0]}.pdf`);
+            toast.success("PDF exportado correctamente");
+        } catch (error) {
+            console.error('PDF Export Error:', error);
+            toast.error("Error al generar el PDF");
+        }
+    };
+
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
+        <div className="space-y-6" id="report-container">
+            <div className="flex justify-between items-center no-print">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Gerencial</h1>
                     <p className="text-gray-500 mt-1">Indicadores e inteligencia de negocios</p>
                 </div>
-                <Button className="bg-primary text-white">
+                <Button className="bg-primary text-white" onClick={handleExportPDF}>
                     <Download className="w-4 h-4 mr-2" /> Exportar Informe PDF
                 </Button>
             </div>

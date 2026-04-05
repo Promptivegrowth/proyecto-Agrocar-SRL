@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { Search, History, Check, DollarSign, Wallet, CreditCard, Banknote, Landmark } from 'lucide-react';
+import { Search, History, Check, DollarSign, Wallet, CreditCard, Banknote, Landmark, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -219,6 +219,15 @@ function CuentasCorrientesContent() {
 
     return (
         <div className="space-y-6">
+            <Button
+                variant="ghost"
+                size="sm"
+                className="-ml-2 text-slate-500 hover:text-slate-900 font-bold flex items-center"
+                onClick={() => window.location.href = '/cobranzas/cuentas-corrientes'}
+            >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Volver a la lista
+            </Button>
             <div>
                 <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Cuentas Corrientes</h1>
                 <p className="text-gray-500 mt-1">Gestión de créditos, amortizaciones y línea crediticia por cliente</p>

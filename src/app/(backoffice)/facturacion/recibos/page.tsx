@@ -18,6 +18,13 @@ export default function RecibosCajaPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedRecibo, setSelectedRecibo] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [filters, setFilters] = useState({
+        startDate: '',
+        endDate: '',
+        minAmount: '',
+        maxAmount: ''
+    });
 
     const { data: recibos, isLoading, error: queryError } = useQuery({
         queryKey: ['recibos-caja'],
@@ -36,11 +43,23 @@ export default function RecibosCajaPage() {
         }
     });
 
-    const filteredRecibos = recibos?.filter(r =>
-        r.numero_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.razon_social_cliente?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.num_doc_cliente?.includes(searchTerm)
-    );
+    const filteredRecibos = recibos?.filter(r => {
+        const matchesSearch = (
+            r.numero_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            r.razon_social_cliente?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            r.num_doc_cliente?.includes(searchTerm)
+        );
+
+        const amount = Number(r.total);
+        const matchesMinAmount = !filters.minAmount || amount >= Number(filters.minAmount);
+        const matchesMaxAmount = !filters.maxAmount || amount <= Number(filters.maxAmount);
+
+        const date = r.fecha_emision;
+        const matchesStartDate = !filters.startDate || date >= filters.startDate;
+        const matchesEndDate = !filters.endDate || date <= filters.endDate;
+
+        return matchesSearch && matchesMinAmount && matchesMaxAmount && matchesStartDate && matchesEndDate;
+    });
 
     const handleVerRecibo = (recibo: any) => {
         // En un entorno real, buscaríamos el pago asociado para tener el método de pago real
@@ -113,13 +132,72 @@ export default function RecibosCajaPage() {
                                 </Badge>
                             )}
                             <div className="text-[10px] bg-slate-100 p-2 rounded border border-slate-200 text-slate-500 font-mono">
-                                DEBUG: {recibos?.length || 0} docs found (DI)
+                                {filteredRecibos?.length || 0} / {recibos?.length || 0} docs
                             </div>
-                            <Button variant="outline" className="h-11 font-bold border-slate-200 shadow-sm">
-                                <Filter className="w-4 h-4 mr-2 text-slate-400" /> Filtros Avanzados
+                            <Button
+                                variant={showAdvanced ? "default" : "outline"}
+                                className="h-11 font-bold border-slate-200 shadow-sm"
+                                onClick={() => setShowAdvanced(!showAdvanced)}
+                            >
+                                <Filter className="w-4 h-4 mr-2 text-slate-400" />
+                                {showAdvanced ? "Cerrar Filtros" : "Filtros Avanzados"}
                             </Button>
                         </div>
                     </div>
+
+                    {/* Advanced Filters Panel */}
+                    {showAdvanced && (
+                        <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-4 gap-4 animate-in slide-in-from-top-2 duration-300">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400">Fecha Inicio</label>
+                                <Input
+                                    type="date"
+                                    value={filters.startDate}
+                                    onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                                    className="h-9 text-sm"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400">Fecha Fin</label>
+                                <Input
+                                    type="date"
+                                    value={filters.endDate}
+                                    onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                                    className="h-9 text-sm"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400">Monto Mínimo</label>
+                                <Input
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={filters.minAmount}
+                                    onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })}
+                                    className="h-9 text-sm"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400">Monto Máximo</label>
+                                <Input
+                                    type="number"
+                                    placeholder="9999.99"
+                                    value={filters.maxAmount}
+                                    onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })}
+                                    className="h-9 text-sm"
+                                />
+                            </div>
+                            <div className="md:col-start-4 flex justify-end">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-[10px] font-bold text-slate-400"
+                                    onClick={() => setFilters({ startDate: '', endDate: '', minAmount: '', maxAmount: '' })}
+                                >
+                                    LIMPIAR FILTROS
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
