@@ -19,18 +19,20 @@ export default function RecibosCajaPage() {
     const [selectedRecibo, setSelectedRecibo] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const { data: recibos, isLoading } = useQuery({
+    const { data: recibos, isLoading, error: queryError } = useQuery({
         queryKey: ['recibos-caja'],
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('comprobantes')
                 .select('*')
                 .eq('tipo', 'DI')
-                .eq('serie', 'RC01')
-                .order('fecha_emision', { ascending: false })
-                .order('correlativo', { ascending: false });
+                .in('serie', ['RC01', 'RC']) // Filter for both just in case
+                .order('fecha_emision', { ascending: false });
 
-            if (error) throw error;
+            if (error) {
+                console.error('RECIBOS QUERY ERROR:', error);
+                throw error;
+            }
             return data;
         }
     });
@@ -106,6 +108,14 @@ export default function RecibosCajaPage() {
                             />
                         </div>
                         <div className="flex items-center gap-2">
+                            {queryError && (
+                                <Badge variant="destructive" className="font-bold">
+                                    Error DB: {(queryError as any).message}
+                                </Badge>
+                            )}
+                            <div className="text-[10px] bg-slate-100 p-2 rounded border border-slate-200 text-slate-500 font-mono">
+                                DEBUG: {recibos?.length || 0} docs found (DI)
+                            </div>
                             <Button variant="outline" className="h-11 font-bold border-slate-200 shadow-sm">
                                 <Filter className="w-4 h-4 mr-2 text-slate-400" /> Filtros Avanzados
                             </Button>
