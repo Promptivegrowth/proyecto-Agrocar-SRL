@@ -157,16 +157,17 @@ async function processAndUploadFile(
 
     onProgress({ status: 'processing' });
 
-    // SIN COMPRESIÓN: Mantener original para evitar daños en Excel/PDF
-    const archivoFinal: File = file;
-    const storedName = file.name;
+    // LEER ARCHIVO COMO ARRAYBUFFER (EVITAR CONSUMIR MÚLTIPLES VECES)
+    const arrayBuffer = await file.arrayBuffer();
+    console.log(`[Archivos] Procesando "${file.name}":`, { size: file.size, type: file.type });
 
     // Hash SHA-256 para deduplicación
     let hash = '';
     try {
-        const buf = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+        const buf = await crypto.subtle.digest('SHA-256', arrayBuffer);
         hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch { /* Skip */ }
+    } catch (e) { console.error('[Archivos] Error hashing:', e); }
+
 
     // Verificar duplicado
     if (hash) {
@@ -185,10 +186,15 @@ async function processAndUploadFile(
 
     // Subir a Storage
     onProgress({ status: 'uploading' });
-    const storagePath = `${proyectoId}/${Date.now()}_${storedName}`;
+    const storagePath = `${proyectoId}/${Date.now()}_${file.name}`;
     const { error: uploadError } = await supabase.storage
         .from('archivos-corporativos')
-        .upload(storagePath, archivoFinal, { cacheControl: '3600', upsert: false });
+        .upload(storagePath, arrayBuffer, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type || 'application/octet-stream'
+        });
+
 
     if (uploadError) {
         onProgress({ status: 'error', error: uploadError.message });
@@ -199,21 +205,24 @@ async function processAndUploadFile(
     const { error: dbError } = await supabase.from('archivos').insert({
         proyecto_id: proyectoId,
         nombre_original: file.name,
-        nombre_storage: storedName,
+        nombre_storage: file.name,
         tipo_mime: file.type,
         extension: ext,
         tamano_original: tamanoOriginal,
-        tamano_almacenado: archivoFinal.size,
+        tamano_almacenado: arrayBuffer.byteLength,
         hash_sha256: hash || null,
         storage_path: storagePath,
     });
+
 
     if (dbError) {
         onProgress({ status: 'error', error: dbError.message });
         return;
     }
 
-    onProgress({ status: 'done', stored: archivoFinal.size });
+    onProgress({ status: 'done', stored: arrayBuffer.byteLength });
+    console.log(`[Archivos] Subida exitosa: "${file.name}"`, { path: storagePath });
+
 }
 
 // ─── Componentes Internos ─────────────────────────────────────────────────────
