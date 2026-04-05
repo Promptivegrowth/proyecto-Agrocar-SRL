@@ -17,10 +17,60 @@ import { Badge } from '@/components/ui/badge';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from '@/components/ui/dialog';
-import {
-    DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-    DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+
+// ─── Menú Personalizado (reemplaza DropdownMenu de Base UI para evitar Error #31) ─
+function FileMenu({ onView, onDownload, onShare, onDelete }: {
+    onView: () => void;
+    onDownload: () => void;
+    onShare: () => void;
+    onDelete: () => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    return (
+        <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+            <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+                className="h-8 w-8 flex items-center justify-center rounded-xl border border-slate-100 hover:bg-slate-50 transition-all text-slate-400 focus:outline-none"
+            >
+                <MoreHorizontal className="w-4 h-4" />
+            </button>
+            {open && (
+                <div className="absolute right-0 bottom-full mb-1 z-50 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 animate-in fade-in-0 zoom-in-95 duration-100">
+                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-2 py-1">Opciones</p>
+                    <button onClick={() => { setOpen(false); onView(); }} className="w-full flex items-center gap-2 px-2 py-2 text-left rounded-xl hover:bg-slate-50 transition-colors">
+                        <Eye className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-700">Previsualizar</span>
+                    </button>
+                    <button onClick={() => { setOpen(false); onDownload(); }} className="w-full flex items-center gap-2 px-2 py-2 text-left rounded-xl hover:bg-slate-50 transition-colors">
+                        <Download className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-700">Descargar</span>
+                    </button>
+                    <button onClick={() => { setOpen(false); onShare(); }} className="w-full flex items-center gap-2 px-2 py-2 text-left rounded-xl hover:bg-slate-50 transition-colors">
+                        <Share2 className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-bold text-slate-700">Compartir</span>
+                    </button>
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button onClick={() => { setOpen(false); onDelete(); }} className="w-full flex items-center gap-2 px-2 py-2 text-left rounded-xl hover:bg-red-50 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                        <span className="text-xs font-black text-red-600">Eliminar</span>
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Proyecto = {
@@ -298,46 +348,12 @@ function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () =>
                 >
                     <Eye className="w-3 h-3 mr-1.5" /> Ver
                 </Button>
-
-                <DropdownMenu>
-                    <DropdownMenuTrigger
-                        render={<button className="h-8 w-8 flex items-center justify-center rounded-xl border border-slate-100 hover:bg-slate-50 transition-all text-slate-400 focus:outline-none" />}
-                    >
-                        <MoreHorizontal className="w-4 h-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 rounded-2xl p-2 border-slate-100 shadow-xl">
-                        <DropdownMenuLabel className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-2 mb-1">Opciones de Archivo</DropdownMenuLabel>
-                        <DropdownMenuItem
-                            render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
-                            onClick={onView}
-                        >
-                            <Eye className="w-3.5 h-3.5 mr-2 text-slate-400" />
-                            <span className="text-xs font-bold text-slate-700">Previsualizar</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
-                            onClick={() => onMenu('download' as any)}
-                        >
-                            <Download className="w-3.5 h-3.5 mr-2 text-slate-400" />
-                            <span className="text-xs font-bold text-slate-700">Descargar</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
-                            onClick={() => onMenu('share' as any)}
-                        >
-                            <Share2 className="w-3.5 h-3.5 mr-2 text-slate-400" />
-                            <span className="text-xs font-bold text-slate-700">Compartir</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="my-1 bg-slate-50" />
-                        <DropdownMenuItem
-                            render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-red-50 text-red-600 flex items-center" />}
-                            onClick={() => onMenu('delete' as any)}
-                        >
-                            <Trash2 className="w-3.5 h-3.5 mr-2" />
-                            <span className="text-xs font-black">Eliminar</span>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <FileMenu
+                    onView={onView}
+                    onDownload={() => onMenu('download')}
+                    onShare={() => onMenu('share')}
+                    onDelete={() => onMenu('delete')}
+                />
             </div>
         </div>
     );
@@ -432,63 +448,70 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
                     )}
 
                     {signedUrl && !loading && (
-                        <div className="w-full h-full">
+                        <div className="w-full h-full flex flex-col">
                             {isImage && (
-                                <div className="w-full h-full flex items-center justify-center p-8 overflow-auto bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-800 to-slate-900">
+                                <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-800 to-slate-900">
                                     <div className="relative select-none group">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                             src={signedUrl}
                                             alt={archivo.nombre_original}
-                                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl border border-white/5 transition-transform duration-500 group-hover:scale-[1.01]"
+                                            className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-2xl border border-white/5"
                                             draggable={false}
-                                            style={{ userSelect: 'none', WebkitUserDrag: 'none' } as any}
                                         />
                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                                            <p className="text-white font-black text-4xl uppercase tracking-[1em] rotate-[-30deg] whitespace-nowrap select-none">
-                                                AGROCAR SRL
-                                            </p>
+                                            <p className="text-white font-black text-4xl uppercase tracking-[1em] rotate-[-30deg] whitespace-nowrap select-none">AGROCAR SRL</p>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
                             {isPDF && (
-                                <iframe
-                                    src={`${signedUrl}#toolbar=0&navpanes=0`}
-                                    className="w-full h-full border-0"
-                                    title={archivo.nombre_original}
-                                    sandbox="allow-same-origin allow-scripts allow-downloads allow-forms"
-                                />
+                                <div className="flex-1 relative" style={{ minHeight: 0 }}>
+                                    <object
+                                        data={signedUrl}
+                                        type="application/pdf"
+                                        style={{ width: '100%', height: '100%', display: 'block', border: 'none' }}
+                                    >
+                                        <div className="flex flex-col items-center justify-center h-full text-white/60 gap-4">
+                                            <FileText className="w-16 h-16 opacity-30" />
+                                            <p className="text-sm font-bold">Tu navegador no puede mostrar el PDF aquí.</p>
+                                            <a
+                                                href={signedUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="bg-white/10 hover:bg-white/20 text-white rounded-xl px-6 py-2 text-sm font-bold transition-colors"
+                                            >
+                                                Abrir PDF en nueva pestaña
+                                            </a>
+                                        </div>
+                                    </object>
+                                </div>
                             )}
 
                             {isText && (
-                                <div className="w-full h-full p-8 bg-slate-950">
+                                <div className="flex-1 p-8 bg-slate-950" style={{ minHeight: 0 }}>
                                     <iframe
                                         src={signedUrl}
                                         className="w-full h-full bg-white rounded-2xl shadow-xl border-0"
                                         title={archivo.nombre_original}
+                                        style={{ minHeight: 0 }}
                                     />
                                 </div>
                             )}
 
                             {!isImage && !isPDF && !isText && (
-                                <div className="flex items-center justify-center h-full text-white/50 bg-slate-900">
+                                <div className="flex-1 flex items-center justify-center text-white/50 bg-slate-900">
                                     <div className="text-center space-y-4 max-w-sm px-6">
                                         <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/10">
                                             <FileText className="w-10 h-10 text-white/20" />
                                         </div>
                                         <p className="font-black uppercase text-sm tracking-[0.2em] text-white">Vista previa no disponible</p>
-                                        <p className="text-xs text-slate-500 leading-relaxed">
-                                            Este formato no puede previsualizarse en el navegador de forma nativa.
-                                            Por favor, descargue el archivo para verlo.
-                                        </p>
-                                        <Button
-                                            variant="outline"
-                                            className="mt-6 rounded-2xl border-white/10 text-white hover:bg-white/10 h-10 px-8 font-bold"
-                                            onClick={() => {/* Trigger download maybe? but it's easier via the menu */ }}
-                                        >
+                                        <p className="text-xs text-slate-500 leading-relaxed">Este formato no puede previsualizarse en el navegador. Descárgalo para verlo.</p>
+                                        <a href={signedUrl} download={archivo.nombre_original}
+                                            className="inline-flex items-center mt-6 rounded-2xl border border-white/10 text-white hover:bg-white/10 h-10 px-8 font-bold text-sm transition-colors">
                                             <Download className="w-4 h-4 mr-2" /> Descargar Archivo
-                                        </Button>
+                                        </a>
                                     </div>
                                 </div>
                             )}
@@ -1137,46 +1160,13 @@ export default function ArchivosPage() {
                                                                 <Eye className="w-3 h-3" /> {archivo.total_vistas}
                                                             </span>
                                                         </td>
-                                                        <td className="pr-4">
-                                                            <DropdownMenu>
-                                                                <DropdownMenuTrigger
-                                                                    render={<button className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all opacity-0 group-hover:opacity-100 focus:outline-none" />}
-                                                                    onClick={(e) => { e.stopPropagation(); }}
-                                                                >
-                                                                    <MoreHorizontal className="w-4 h-4 text-slate-400" />
-                                                                </DropdownMenuTrigger>
-                                                                <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl p-2 border-0">
-                                                                    <DropdownMenuItem
-                                                                        render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
-                                                                        onClick={(e) => { e.stopPropagation(); setVisorArchivo(archivo); }}
-                                                                    >
-                                                                        <Eye className="w-3.5 h-3.5 mr-2 text-slate-400" />
-                                                                        <span className="text-xs font-bold text-slate-700">Previsualizar</span>
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem
-                                                                        render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
-                                                                        onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'download'); }}
-                                                                    >
-                                                                        <Download className="w-3.5 h-3.5 mr-2 text-slate-400" />
-                                                                        <span className="text-xs font-bold text-slate-700">Descargar</span>
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem
-                                                                        render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-slate-50 flex items-center" />}
-                                                                        onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'share'); }}
-                                                                    >
-                                                                        <Share2 className="w-3.5 h-3.5 mr-2 text-slate-400" />
-                                                                        <span className="text-xs font-bold text-slate-700">Compartir</span>
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuSeparator className="my-1" />
-                                                                    <DropdownMenuItem
-                                                                        render={<div className="rounded-xl cursor-pointer py-2 px-2 focus:bg-red-50 text-red-600 flex items-center" />}
-                                                                        onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'delete'); }}
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5 mr-2" />
-                                                                        <span className="text-xs font-black">Eliminar</span>
-                                                                    </DropdownMenuItem>
-                                                                </DropdownMenuContent>
-                                                            </DropdownMenu>
+                                                        <td className="pr-4" onClick={(e) => e.stopPropagation()}>
+                                                            <FileMenu
+                                                                onView={() => setVisorArchivo(archivo)}
+                                                                onDownload={() => handleFileMenu(archivo, 'download')}
+                                                                onShare={() => handleFileMenu(archivo, 'share')}
+                                                                onDelete={() => handleFileMenu(archivo, 'delete')}
+                                                            />
                                                         </td>
                                                     </tr>
                                                 );
