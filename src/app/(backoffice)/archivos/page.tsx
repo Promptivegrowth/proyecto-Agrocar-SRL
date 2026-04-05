@@ -132,7 +132,7 @@ async function processAndUploadFile(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             archivoFinal = compressed as any;
         } catch { /* Keep original */ }
-    } else if (['pdf', 'docx', 'xlsx', 'pptx', 'txt', 'csv'].includes(ext)) {
+    } else if (['docx', 'xlsx', 'pptx', 'txt', 'csv'].includes(ext)) { // REMOVED pdf from here
         try {
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const pakoMod = await import('pako');
@@ -233,7 +233,7 @@ function ProyectoItem({ proyecto, isActive, onClick }: { proyecto: Proyecto; isA
     );
 }
 
-function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () => void; onMenu: (e: React.MouseEvent) => void }) {
+function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () => void; onMenu: (action: 'view' | 'download' | 'share' | 'delete') => void }) {
     const { icon: Icon, color } = getFileIcon(archivo.extension, archivo.tipo_mime);
     const savings = getCompressionSavings(archivo.tamano_original, archivo.tamano_almacenado);
 
@@ -298,14 +298,38 @@ function FileCard({ archivo, onView, onMenu }: { archivo: Archivo; onView: () =>
                 >
                     <Eye className="w-3 h-3 mr-1.5" /> Ver
                 </Button>
-                <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={onMenu}
-                    className="h-8 w-8 p-0 rounded-xl border-slate-100 hover:bg-slate-50"
-                >
-                    <MoreHorizontal className="w-4 h-4 text-slate-400" />
-                </Button>
+
+                <DropdownMenu>
+                    <DropdownMenuTrigger>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 rounded-xl border-slate-100 hover:bg-slate-50"
+                        >
+                            <MoreHorizontal className="w-4 h-4 text-slate-400" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48 rounded-2xl p-2 border-slate-100 shadow-xl">
+                        <DropdownMenuLabel className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-2 mb-1">Opciones de Archivo</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={onView} className="rounded-xl cursor-pointer py-2 focus:bg-slate-50">
+                            <Eye className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                            <span className="text-xs font-bold text-slate-700">Previsualizar</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onMenu('download' as any)} className="rounded-xl cursor-pointer py-2 focus:bg-slate-50">
+                            <Download className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                            <span className="text-xs font-bold text-slate-700">Descargar</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onMenu('share' as any)} className="rounded-xl cursor-pointer py-2 focus:bg-slate-50">
+                            <Share2 className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                            <span className="text-xs font-bold text-slate-700">Compartir</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="my-1 bg-slate-50" />
+                        <DropdownMenuItem onClick={() => onMenu('delete' as any)} className="rounded-xl cursor-pointer py-2 focus:bg-red-50 text-red-600">
+                            <Trash2 className="w-3.5 h-3.5 mr-2" />
+                            <span className="text-xs font-black">Eliminar</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
         </div>
     );
@@ -316,30 +340,34 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
     const [signedUrl, setSignedUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
+    const queryClient = useQueryClient();
+
     const loadVisor = useCallback(async () => {
         if (!archivo) return;
         setLoading(true);
         try {
-            // Decompress path if .gz
             const path = archivo.storage_path;
             const { data, error } = await supabase.storage
                 .from('archivos-corporativos')
-                .createSignedUrl(path, 900);
+                .createSignedUrl(path, 3600); // 1 hour
 
             if (error) throw error;
             setSignedUrl(data.signedUrl);
 
-            // Register view
+            // Register view synchronously in UI
             await supabase.from('archivos').update({
                 total_vistas: archivo.total_vistas + 1,
                 ultima_vista: new Date().toISOString()
             }).eq('id', archivo.id);
+
+            // Invalidate cache to reflect new view count immediately
+            queryClient.invalidateQueries({ queryKey: ['archivos-proyecto'] });
         } catch (e: any) {
             toast.error('Error al cargar el archivo: ' + e.message);
         } finally {
             setLoading(false);
         }
-    }, [archivo]);
+    }, [archivo, queryClient]);
 
     useState(() => {
         if (archivo) loadVisor();
@@ -417,7 +445,7 @@ function VisorModal({ archivo, onClose }: { archivo: Archivo | null; onClose: ()
                                     src={`${signedUrl}#toolbar=0&navpanes=0`}
                                     className="w-full h-full border-0"
                                     title={archivo.nombre_original}
-                                    sandbox="allow-same-origin allow-scripts"
+                                    sandbox="allow-same-origin allow-scripts allow-downloads allow-forms"
                                 />
                             )}
 
@@ -781,11 +809,67 @@ export default function ArchivosPage() {
         queryClient.invalidateQueries({ queryKey: ['archivos-stats'] });
     };
 
-    const handleDeleteArchivo = async (archivo: Archivo) => {
-        if (!confirm(`¿Eliminar "${archivo.nombre_original}"? Se enviará a la papelera.`)) return;
-        await supabase.from('archivos').update({ activo: false }).eq('id', archivo.id);
-        refreshAll();
-        toast.success('Archivo eliminado (papelera 30 días)');
+    const handleFileMenu = async (archivo: Archivo, action: 'view' | 'download' | 'share' | 'delete') => {
+        if (action === 'view') {
+            setVisorArchivo(archivo);
+        } else if (action === 'download') {
+            try {
+                const { data, error } = await supabase.storage
+                    .from('archivos-corporativos')
+                    .createSignedUrl(archivo.storage_path, 60, {
+                        download: archivo.nombre_original
+                    });
+                if (error) throw error;
+
+                const link = document.createElement('a');
+                link.href = data.signedUrl;
+                link.download = archivo.nombre_original;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // Register download
+                await supabase.from('archivos').update({
+                    total_descargas: archivo.total_descargas + 1
+                }).eq('id', archivo.id);
+                refreshAll();
+            } catch (e: any) {
+                toast.error('Error al descargar: ' + e.message);
+            }
+        } else if (action === 'share') {
+            try {
+                // Check for existing link or create new one
+                const { data: existing } = await supabase
+                    .from('archivo_links')
+                    .select('token')
+                    .eq('archivo_id', archivo.id)
+                    .eq('activo', true)
+                    .gt('expira_at', new Date().toISOString())
+                    .maybeSingle();
+
+                let token = existing?.token;
+                if (!token) {
+                    token = crypto.randomUUID();
+                    await supabase.from('archivo_links').insert({
+                        archivo_id: archivo.id,
+                        token,
+                        expira_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+                        creado_por: (await supabase.auth.getUser()).data.user?.id
+                    });
+                }
+
+                const url = `${window.location.origin}/ver/${token}`;
+                navigator.clipboard.writeText(url);
+                toast.success('Link copiado al portapapeles (Válido 7 días)');
+            } catch (e: any) {
+                toast.error('Error al generar link: ' + e.message);
+            }
+        } else if (action === 'delete') {
+            if (!confirm(`¿Eliminar "${archivo.nombre_original}"? Se enviará a la papelera.`)) return;
+            await supabase.from('archivos').update({ activo: false }).eq('id', archivo.id);
+            refreshAll();
+            toast.success('Archivo eliminado (papelera 30 días)');
+        }
     };
 
     const STORAGE_LIMIT = 5 * 1024 * 1024 * 1024; // 5 GB
@@ -965,16 +1049,13 @@ export default function ArchivosPage() {
                                     </div>
                                 </div>
                             ) : viewMode === 'grid' ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                                     {filteredArchivos.map(archivo => (
                                         <FileCard
                                             key={archivo.id}
                                             archivo={archivo}
                                             onView={() => setVisorArchivo(archivo)}
-                                            onMenu={e => {
-                                                e.stopPropagation();
-                                                // handled in dropdown
-                                            }}
+                                            onMenu={action => handleFileMenu(archivo, action as any)}
                                         />
                                     ))}
                                 </div>
@@ -1033,15 +1114,38 @@ export default function ArchivosPage() {
                                                         </td>
                                                         <td className="pr-4">
                                                             <DropdownMenu>
-                                                                <DropdownMenuTrigger className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all opacity-0 group-hover:opacity-100">
-                                                                    <MoreHorizontal className="w-4 h-4 text-slate-400" />
+                                                                <DropdownMenuTrigger>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        className="h-9 w-9 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all opacity-0 group-hover:opacity-100 p-0"
+                                                                    >
+                                                                        <MoreHorizontal className="w-4 h-4 text-slate-400" />
+                                                                    </Button>
                                                                 </DropdownMenuTrigger>
                                                                 <DropdownMenuContent align="end" className="w-48 rounded-2xl shadow-xl p-2 border-0">
-                                                                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={() => setVisorArchivo(archivo)}>
+                                                                    <DropdownMenuItem
+                                                                        className="rounded-xl h-10 font-bold text-xs cursor-pointer"
+                                                                        onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'view'); }}
+                                                                    >
                                                                         <Eye className="w-4 h-4 mr-3" /> Ver Archivo
                                                                     </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        className="rounded-xl h-10 font-bold text-xs cursor-pointer"
+                                                                        onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'download'); }}
+                                                                    >
+                                                                        <Download className="w-4 h-4 mr-3" /> Descargar
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        className="rounded-xl h-10 font-bold text-xs cursor-pointer"
+                                                                        onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'share'); }}
+                                                                    >
+                                                                        <Share2 className="w-4 h-4 mr-3" /> Compartir
+                                                                    </DropdownMenuItem>
                                                                     <DropdownMenuSeparator className="my-1" />
-                                                                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs text-red-500 cursor-pointer" onClick={() => handleDeleteArchivo(archivo)}>
+                                                                    <DropdownMenuItem
+                                                                        className="rounded-xl h-10 font-bold text-xs text-red-500 cursor-pointer"
+                                                                        onClick={(e) => { e.stopPropagation(); handleFileMenu(archivo, 'delete'); }}
+                                                                    >
                                                                         <Trash2 className="w-4 h-4 mr-3" /> Eliminar
                                                                     </DropdownMenuItem>
                                                                 </DropdownMenuContent>
