@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
     FileText,
     RefreshCcw,
@@ -344,35 +345,47 @@ export default function FacturacionBloquePage() {
                                                     Emitir Bloque <ChevronRight className="w-3 h-3 ml-1" />
                                                 </Button>
                                             ) : (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="text-xs group-hover:bg-white"
-                                                    onClick={async () => {
-                                                        const { data: items } = await supabase
-                                                            .from('pedido_items')
-                                                            .select('*, pedidos!inner(consolidado_id)')
-                                                            .eq('pedidos.consolidado_id', cons.id);
+                                                <div className="flex flex-col gap-1.5">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="text-[10px] h-7 group-hover:bg-white"
+                                                        onClick={async () => {
+                                                            const { data: items } = await supabase
+                                                                .from('pedido_items')
+                                                                .select('*, pedidos!inner(consolidado_id)')
+                                                                .eq('pedidos.consolidado_id', cons.id);
 
-                                                        setSelectedGuia({
-                                                            numero: cons.numero,
-                                                            fecha_emision: cons.fecha,
-                                                            direccion_cliente: 'Distribución Local (Puntos Varios)',
-                                                            razon_social_cliente: 'CONSOLIDADO DE DESPACHO',
-                                                            num_doc_cliente: cons.vehiculo_placa,
-                                                            detalles: items?.map(it => ({
-                                                                producto_codigo: 'P-' + (it.producto_id?.toString().split('-')[0] || '000'),
-                                                                producto_nombre: it.descripcion,
-                                                                um: it.unidad_medida,
-                                                                cantidad: it.cantidad,
-                                                                peso_total: it.cantidad // Simplificado
-                                                            })) || []
-                                                        });
-                                                        setIsGuiaModalOpen(true);
-                                                    }}
-                                                >
-                                                    <Printer className="w-3 h-3 mr-2" /> Guía Remisión
-                                                </Button>
+                                                            setSelectedGuia({
+                                                                numero: cons.numero,
+                                                                fecha_emision: cons.fecha,
+                                                                direccion_cliente: 'Distribución Local (Puntos Varios)',
+                                                                razon_social_cliente: 'CONSOLIDADO DE DESPACHO',
+                                                                num_doc_cliente: cons.vehiculo_placa,
+                                                                detalles: items?.map(it => ({
+                                                                    producto_codigo: 'P-' + (it.producto_id?.toString().split('-')[0] || '000'),
+                                                                    producto_nombre: it.descripcion,
+                                                                    um: it.unidad_medida,
+                                                                    cantidad: it.cantidad,
+                                                                    peso_total: it.cantidad // Simplificado
+                                                                })) || []
+                                                            });
+                                                            setIsGuiaModalOpen(true);
+                                                        }}
+                                                    >
+                                                        <Printer className="w-2.5 h-2.5 mr-1.5" /> Guía Remisión
+                                                    </Button>
+
+                                                    <Link href={`/facturacion/historial?search=${cons.numero}`}>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-[10px] h-7 w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-0 font-bold"
+                                                        >
+                                                            <FileText className="w-2.5 h-2.5 mr-1" /> Ver Facturas
+                                                        </Button>
+                                                    </Link>
+                                                </div>
                                             )}
                                         </TableCell>
                                     </TableRow>
