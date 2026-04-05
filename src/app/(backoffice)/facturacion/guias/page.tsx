@@ -141,159 +141,192 @@ export default function GuiasRemisionPage() {
                 </CardContent>
             </Card>
 
-            {/* Modal de Detalle */}
+            {/* Modal de Detalle - Rediseñado para Formato SUNAT Profesional */}
             <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-                <DialogContent className="sm:max-w-4xl max-h-[95vh] overflow-y-auto p-0 border-0 rounded-3xl shadow-2xl">
-                    <div className="bg-slate-900 p-8 text-white">
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-4">
-                                <div className="bg-primary p-3 rounded-2xl">
-                                    <FileText className="w-8 h-8 text-white" />
-                                </div>
-                                <div>
-                                    <h2 className="text-3xl font-black uppercase tracking-tighter italic">Guía de Remisión Electrónica</h2>
-                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-1">N° {selectedGuia?.numero_completo}</p>
-                                </div>
+                <DialogContent className="sm:max-w-4xl max-h-[98vh] overflow-y-auto p-0 border-0 rounded-3xl shadow-2xl bg-white print:shadow-none print:m-0 print:p-0 print:max-h-none print:w-full">
+                    {/* Header solo visible en pantalla, oculto en impresión */}
+                    <div className="bg-slate-900 p-6 text-white print:hidden">
+                        <div className="flex justify-between items-center font-inter">
+                            <div className="flex items-center gap-3">
+                                <Truck className="w-6 h-6 text-primary" />
+                                <span className="font-black uppercase tracking-widest text-xs">Vista Previa de Impresión</span>
                             </div>
-                            <div className="text-right">
-                                <Badge className={`bg-emerald-500 text-white font-black px-4 py-1.5 uppercase tracking-widest text-[10px] border-0`}>
-                                    SUNAT: {selectedGuia?.sunat_estado || 'ACEPTADO'}
-                                </Badge>
-                                <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase">Código Hash: a1b2c3d4e5f6</p>
-                            </div>
+                            <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 rounded-full h-8 w-8 p-0" onClick={() => setIsDetailOpen(false)}>×</Button>
                         </div>
                     </div>
 
-                    <div className="p-8 space-y-8 bg-white">
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block font-inter">Fecha Emisión</label>
-                                <p className="font-bold text-slate-800">{new Date(selectedGuia?.fecha_emision).toLocaleDateString()}</p>
+                    {/* ÁREA IMPRIMIBLE (Formato SUNAT) */}
+                    <div className="p-8 md:p-12 space-y-8 bg-white print:p-4 print:text-[12px]">
+                        {/* Cabecera Principal: Logo/Empresa y Recuadro RUC */}
+                        <div className="flex flex-col md:flex-row justify-between gap-8 items-start border-b-2 border-slate-900 pb-8">
+                            <div className="flex flex-col gap-2 max-w-md">
+                                <h2 className="text-4xl font-black italic tracking-tighter text-slate-900 leading-none">AGROCAR SRL</h2>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+                                    Venta de carnes y embutidos de alta calidad<br />
+                                    Av. Central 123, Callao, Lima - Perú<br />
+                                    Tel: (01) 456-7890 / Correo: ventas@agrocar.pe
+                                </p>
                             </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block font-inter">Motivo Traslado</label>
-                                <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 font-black text-[10px]">VENTA</Badge>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block font-inter">Punto de Partida</label>
-                                <p className="text-xs font-bold text-slate-600 truncate">Sede Central - Agrocar Lima</p>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block font-inter">Peso Bruto Total</label>
-                                <p className="font-black text-primary text-xl">1.2 TN</p>
+
+                            {/* Recuadro RUC (Estandar SUNAT) */}
+                            <div className="border-4 border-slate-900 p-6 text-center rounded-2xl min-w-[300px] bg-slate-50 print:bg-white">
+                                <p className="text-lg font-black text-slate-900">R.U.C. 20123456789</p>
+                                <div className="my-2 py-2 bg-slate-900 text-white font-black text-xl uppercase tracking-tighter decoration-primary decoration-4">
+                                    GUÍA DE REMISIÓN<br />REMITENTE
+                                </div>
+                                <p className="text-2xl font-black text-slate-900 tracking-tighter">{selectedGuia?.numero_completo || 'T001-000123'}</p>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="border-slate-100 bg-slate-50/50 shadow-none">
-                                <CardHeader className="py-4 border-b">
-                                    <CardTitle className="text-xs font-black uppercase text-slate-500 flex items-center gap-2">
-                                        <Users className="w-3.5 h-3.5 text-primary" /> Datos del Destinatario
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="py-4 space-y-3">
-                                    <div>
-                                        <p className="text-lg font-black text-slate-800">{selectedGuia?.razon_social_cliente}</p>
-                                        <p className="text-sm font-bold text-slate-500 italic">RUC: {selectedGuia?.num_doc_cliente}</p>
+                        {/* Bloques de Información (Origen, Destino, Transportista) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                            {/* Bloque: Punto de Partida y Llegada */}
+                            <div className="space-y-6">
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-black uppercase text-primary tracking-[0.2em] border-b pb-1">01. Punto de Partida</h3>
+                                    <div className="flex items-start gap-3">
+                                        <MapPin className="w-5 h-5 text-slate-400 shrink-0" />
+                                        <p className="font-bold text-slate-800 text-sm">Av. Central 123, Callao (Sede Central Agrocar)</p>
                                     </div>
-                                    <div className="flex items-start gap-2 text-xs font-medium text-slate-600">
-                                        <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                                        <span>{selectedGuia?.direccion_cliente}</span>
+                                </div>
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-black uppercase text-primary tracking-[0.2em] border-b pb-1">02. Punto de Llegada</h3>
+                                    <div className="flex items-start gap-3">
+                                        <MapPin className="w-5 h-5 text-slate-900 shrink-0" />
+                                        <p className="font-black text-slate-900 text-sm">{selectedGuia?.direccion_cliente || 'Dirección no especificada'}</p>
                                     </div>
-                                </CardContent>
-                            </Card>
+                                </div>
+                            </div>
 
-                            <Card className="border-slate-100 bg-slate-50/50 shadow-none">
-                                <CardHeader className="py-4 border-b">
-                                    <CardTitle className="text-xs font-black uppercase text-slate-500 flex items-center gap-2">
-                                        <Truck className="w-3.5 h-3.5 text-primary" /> Datos del Transporte
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="py-4 space-y-4">
-                                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                                <Truck className="w-4 h-4 text-slate-500" />
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase">Vehículo</p>
-                                                <p className="font-black text-slate-800">ABC-123</p>
-                                            </div>
-                                        </div>
-                                        <Badge className="bg-slate-100 text-slate-600 border-slate-200">Placa</Badge>
+                            {/* Bloque: Destinatario */}
+                            <div className="space-y-6">
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-black uppercase text-primary tracking-[0.2em] border-b pb-1">03. Datos del Destinatario</h3>
+                                    <div className="space-y-1">
+                                        <p className="text-xl font-black text-slate-900 tracking-tight leading-tight">{selectedGuia?.razon_social_cliente || 'Cliente de Prueba'}</p>
+                                        <p className="text-sm font-bold text-slate-500 uppercase">R.U.C. / D.N.I.: {selectedGuia?.num_doc_cliente || '00000000'}</p>
                                     </div>
-                                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                                <Users className="w-4 h-4 text-slate-500" />
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase">Conductor</p>
-                                                <p className="font-black text-slate-800 italic">Juan Perez Garcia</p>
-                                            </div>
-                                        </div>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Licencia: Q12345678</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Fecha Emisión</p>
+                                        <p className="font-black text-slate-800 text-sm">{new Date(selectedGuia?.fecha_emision || Date.now()).toLocaleDateString()}</p>
                                     </div>
-                                </CardContent>
-                            </Card>
+                                    <div className="space-y-1">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Motivo Traslado</p>
+                                        <p className="font-black text-slate-800 text-sm uppercase">VENTA</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                    <Package className="w-4 h-4" /> Detalle de Bienes Transportados
-                                </h3>
-                                <Badge className="bg-slate-100 text-slate-600">3 Ítems</Badge>
+                        {/* Bloque de Transporte (Crítico para SUNAT) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 border-t border-b border-slate-100 py-6">
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">04. Datos de la Unidad de Transporte</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-slate-50 p-3 rounded-xl print:bg-transparent print:p-0">
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Marca / Placa</p>
+                                        <p className="font-black text-slate-800 text-sm">ABC-123</p>
+                                    </div>
+                                    <div className="bg-slate-50 p-3 rounded-xl print:bg-transparent print:p-0">
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Nro. Registro</p>
+                                        <p className="font-black text-slate-800 text-sm">MTU-4567-REG</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="border rounded-2xl overflow-hidden shadow-sm">
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">05. Datos del Conductor</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-slate-50 p-3 rounded-xl print:bg-transparent print:p-0">
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Nombre Completo</p>
+                                        <p className="font-black text-slate-800 text-sm italic truncate">Juan Perez Garcia</p>
+                                    </div>
+                                    <div className="bg-slate-50 p-3 rounded-xl print:bg-transparent print:p-0">
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Licencia de Conducir</p>
+                                        <p className="font-black text-slate-800 text-sm font-mono tracking-tighter">Q12345678</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Detalle de Mercadería */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-baseline">
+                                <h3 className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">06. Detalle de Bienes Transportados</h3>
+                                <div className="text-[9px] font-bold text-slate-400 italic">Pesos expresados en Kilogramos (KG)</div>
+                            </div>
+                            <div className="border-[1.5px] border-slate-900 rounded-2xl overflow-hidden shadow-sm">
                                 <Table>
-                                    <TableHeader className="bg-slate-50/50">
-                                        <TableRow>
-                                            <TableHead className="font-black text-[10px] uppercase">Cod.</TableHead>
-                                            <TableHead className="font-black text-[10px] uppercase">Descripción del Producto</TableHead>
-                                            <TableHead className="text-right font-black text-[10px] uppercase">U.M.</TableHead>
-                                            <TableHead className="text-right font-black text-[10px] uppercase">Cantidad</TableHead>
-                                            <TableHead className="text-right font-black text-[10px] uppercase">Peso Est.</TableHead>
+                                    <TableHeader className="bg-slate-900">
+                                        <TableRow className="border-none">
+                                            <TableHead className="font-black text-[9px] text-white uppercase text-center w-16">Item</TableHead>
+                                            <TableHead className="font-black text-[9px] text-white uppercase text-center w-24">Código</TableHead>
+                                            <TableHead className="font-black text-[9px] text-white uppercase">Descripción del Producto</TableHead>
+                                            <TableHead className="text-right font-black text-[9px] text-white uppercase w-24 pr-6">U.M.</TableHead>
+                                            <TableHead className="text-right font-black text-[9px] text-white uppercase w-24 pr-6">Cant.</TableHead>
+                                            <TableHead className="text-right font-black text-[9px] text-white uppercase w-28 pr-6">Peso Total</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        <TableRow className="hover:bg-slate-50/50 transition-colors">
-                                            <TableCell className="font-bold text-slate-400">P001</TableCell>
-                                            <TableCell className="font-black text-slate-800 uppercase">Carne de Res - Corte Premium</TableCell>
-                                            <TableCell className="text-right font-bold text-slate-500">KG</TableCell>
-                                            <TableCell className="text-right font-black text-slate-800">120.00</TableCell>
-                                            <TableCell className="text-right font-black text-primary italic">120 KG</TableCell>
+                                        <TableRow className="border-b-2 border-slate-100">
+                                            <TableCell className="text-center font-bold text-slate-400">01</TableCell>
+                                            <TableCell className="text-center font-black text-slate-800">P-10023</TableCell>
+                                            <TableCell className="font-black text-slate-900 text-sm py-4">CARNE DE RES - CORTE PREMIUM REFRIGERADO</TableCell>
+                                            <TableCell className="text-right font-bold text-slate-500 pr-6 uppercase italic">Kilos</TableCell>
+                                            <TableCell className="text-right font-black text-slate-900 text-sm pr-6">150.00</TableCell>
+                                            <TableCell className="text-right font-black text-primary text-sm pr-6">150.00 KG</TableCell>
                                         </TableRow>
-                                        <TableRow className="hover:bg-slate-50/50 transition-colors">
-                                            <TableCell className="font-bold text-slate-400">P002</TableCell>
-                                            <TableCell className="font-black text-slate-800 uppercase">Filete de Pollo x 1kg</TableCell>
-                                            <TableCell className="text-right font-bold text-slate-500">KG</TableCell>
-                                            <TableCell className="text-right font-black text-slate-800">45.00</TableCell>
-                                            <TableCell className="text-right font-black text-primary italic">45 KG</TableCell>
-                                        </TableRow>
-                                        <TableRow className="hover:bg-slate-50/50 transition-colors">
-                                            <TableCell className="font-bold text-slate-400">P003</TableCell>
-                                            <TableCell className="font-black text-slate-800 uppercase">Salchicha Frankfurt Ahumada</TableCell>
-                                            <TableCell className="text-right font-bold text-slate-500">KG</TableCell>
-                                            <TableCell className="text-right font-black text-slate-800">30.00</TableCell>
-                                            <TableCell className="text-right font-black text-primary italic">30 KG</TableCell>
+                                        <TableRow className="border-b-2 border-slate-100">
+                                            <TableCell className="text-center font-bold text-slate-400">02</TableCell>
+                                            <TableCell className="text-center font-black text-slate-800">P-10045</TableCell>
+                                            <TableCell className="font-black text-slate-900 text-sm py-4">HOT DOG DE TERNERA GOURMET X 500G</TableCell>
+                                            <TableCell className="text-right font-bold text-slate-500 pr-6 uppercase italic">Kilos</TableCell>
+                                            <TableCell className="text-right font-black text-slate-900 text-sm pr-6">40.00</TableCell>
+                                            <TableCell className="text-right font-black text-primary text-sm pr-6">20.00 KG</TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>
                             </div>
                         </div>
+
+                        {/* Footer de Firma y QR */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 pt-16 mt-8 print:pt-10">
+                            <div className="flex flex-col items-center">
+                                <div className="border-t-2 border-slate-300 w-full mt-12 mb-2"></div>
+                                <p className="text-[10px] font-black uppercase text-slate-400">Firma del Conductor</p>
+                                <p className="text-[9px] font-bold text-slate-300">DNI: ___________</p>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <div className="border-t-2 border-slate-300 w-full mt-12 mb-2"></div>
+                                <p className="text-[10px] font-black uppercase text-slate-400">Recibido por (Firma/Sello)</p>
+                                <p className="text-[9px] font-bold text-slate-300">DNI: ___________</p>
+                            </div>
+                            <div className="flex items-center justify-center bg-slate-50 border-2 border-slate-100 rounded-3xl p-6 print:bg-white">
+                                <div className="bg-white p-2 border border-slate-200">
+                                    <div className="w-24 h-24 bg-slate-100 flex items-center justify-center">
+                                        <p className="text-[8px] font-black text-slate-300 uppercase text-center px-4 leading-tight">QR CODE GENERATED BY SUNAT</p>
+                                    </div>
+                                </div>
+                                <div className="ml-4 space-y-1">
+                                    <p className="text-[11px] font-black text-slate-900">Validado por SUNAT</p>
+                                    <p className="text-[9px] font-bold text-slate-400 leading-tight">Comprobante de Pago electrónico<br />Resolv. N° 0180050002164</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <DialogFooter className="px-8 py-6 border-t bg-slate-50 flex gap-4">
+                    {/* Botones de acción (Solo pantalla) */}
+                    <DialogFooter className="px-8 py-6 border-t bg-slate-50 flex gap-4 print:hidden sticky bottom-0 z-50">
                         <Button variant="outline" className="px-8 font-black uppercase text-xs tracking-widest border-2 h-12 rounded-xl" onClick={() => setIsDetailOpen(false)}>
-                            Cerrar
+                            Cerrar Vista
                         </Button>
-                        <Button className="flex-1 bg-slate-900 hover:bg-slate-800 font-black text-xs uppercase tracking-widest h-12 rounded-xl shadow-xl shadow-slate-200" onClick={() => {
-                            toast.success("Preparando descarga PDF...");
+                        <Button className="flex-1 bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase tracking-widest h-12 rounded-xl shadow-xl shadow-primary/20" onClick={() => {
+                            toast.info("Generando formato de impresión...");
                             window.print();
                         }}>
-                            <FileText className="w-5 h-5 mr-3" />
-                            Descargar en PDF
+                            <Printer className="w-5 h-5 mr-3" />
+                            Imprimir / Guardar PDF
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -38,10 +38,27 @@ function CuentasCorrientesContent() {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from('clientes')
-                .select('id, razon_social, numero_documento, estado')
+                .select(`
+                    id, 
+                    razon_social, 
+                    numero_documento, 
+                    estado,
+                    comprobantes(total, monto_pagado, estado_pago)
+                `)
                 .order('razon_social');
+
             if (error) throw error;
-            return data;
+
+            return data.map(c => {
+                const comps = Array.isArray(c.comprobantes) ? c.comprobantes : [];
+                const deudaTotal = comps.reduce((acc: number, curr: any) => {
+                    if (['pendiente', 'parcial', 'vencido'].includes(curr.estado_pago)) {
+                        return acc + (curr.total - (curr.monto_pagado || 0));
+                    }
+                    return acc;
+                }, 0);
+                return { ...c, deudaTotal };
+            });
         },
         enabled: !clienteId
     });
@@ -142,12 +159,13 @@ function CuentasCorrientesContent() {
                                         <TableHead>Cliente</TableHead>
                                         <TableHead>Documento</TableHead>
                                         <TableHead>Estado</TableHead>
+                                        <TableHead className="text-right">Deuda Total</TableHead>
                                         <TableHead className="text-right">Acción</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {loadingClients ? (
-                                        <TableRow><TableCell colSpan={4} className="text-center py-8">Cargando...</TableCell></TableRow>
+                                        <TableRow><TableCell colSpan={5} className="text-center py-8">Cargando...</TableCell></TableRow>
                                     ) : clientes?.map(c => (
                                         <TableRow key={c.id}>
                                             <TableCell className="font-medium text-gray-900">{c.razon_social}</TableCell>
@@ -156,6 +174,11 @@ function CuentasCorrientesContent() {
                                                 <Badge className={c.estado === 'activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                                                     {c.estado.toUpperCase()}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <span className={`font-bold ${c.deudaTotal > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                                                    S/ {c.deudaTotal.toFixed(2)}
+                                                </span>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button size="sm" onClick={() => window.location.href = `/cobranzas/cuentas-corrientes?cliente_id=${c.id}`}>

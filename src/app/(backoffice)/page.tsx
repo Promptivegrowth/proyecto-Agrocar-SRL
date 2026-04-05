@@ -88,16 +88,17 @@ export default function DashboardPage() {
                         variant="outline"
                         size="sm"
                         className="rounded-xl font-bold text-xs uppercase tracking-widest border-2"
-                        onClick={() => {
+                        onClick={async () => {
                             const dataToExport = [
-                                { "Reporte": "Resumen General", "Fecha": new Date().toLocaleDateString() },
-                                { "Concepto": "Ventas de Mes", "Valor": stats?.pedidosTotal },
-                                { "Concepto": "Cobranza Total", "Valor": stats?.pagosTotal },
-                                { "Concepto": "Documentos SUNAT", "Valor": stats?.comprobantesCount },
-                                { "Concepto": "Alertas de Stock", "Valor": stats?.alertas.length }
+                                { "REPORTE": "RESUMEN GERENCIAL AGROCAR", "FECHA": new Date().toLocaleDateString() },
+                                { "CONCEPTO": "VENTAS TOTALES DEL MES", "VALOR": stats?.pedidosTotal },
+                                { "CONCEPTO": "COBRANZA TOTAL EFECTIVA", "VALOR": stats?.pagosTotal },
+                                { "CONCEPTO": "DOCUMENTOS EMITIDOS (SUNAT)", "VALOR": stats?.comprobantesCount },
+                                { "CONCEPTO": "PRODUCTOS CON STOCK CRÍTICO", "VALOR": stats?.alertas.length },
+                                { "CONCEPTO": "ESTUADO DE OPERACIÓN", "VALOR": "OPTIMO" }
                             ];
-                            exportToExcel(dataToExport, "Reporte_Agrocar_Gerencial", "Dashboard");
-                            toast.success("Excel generado con éxito");
+                            await exportToExcel(dataToExport, "Reporte_Gerencial_Agrocar", "Dashboard");
+                            toast.success("Reporte gerencial generado");
                         }}
                     >
                         Exportar Reporte

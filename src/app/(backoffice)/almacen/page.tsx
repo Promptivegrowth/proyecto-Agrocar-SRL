@@ -98,18 +98,22 @@ export default function AlmacenPage() {
                             <div className="space-y-4 py-4">
                                 <div className="space-y-2">
                                     <Label>Producto</Label>
-                                    <Select onValueChange={(v: any) => setTransferData({ ...transferData, producto_id: v })}>
-                                        <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="Seleccione producto" />
+                                    <Select
+                                        value={transferData.producto_id}
+                                        onValueChange={(v: any) => setTransferData({ ...transferData, producto_id: v })}
+                                    >
+                                        <SelectTrigger className="w-full overflow-hidden">
+                                            <SelectValue placeholder="Seleccione producto" className="truncate" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {stockData?.map((it: any, idx: number) => {
                                                 const p = Array.isArray(it.productos) ? it.productos[0] : it.productos;
                                                 const a = Array.isArray(it.almacenes) ? it.almacenes[0] : it.almacenes;
+                                                const label = `${p?.codigo} - ${p?.descripcion}`;
                                                 return (
-                                                    <SelectItem key={idx} value={p?.id}>
-                                                        <div className="flex flex-col">
-                                                            <span className="font-bold">{p?.codigo} - {p?.descripcion}</span>
+                                                    <SelectItem key={idx} value={p?.id || idx.toString()}>
+                                                        <div className="flex flex-col text-left">
+                                                            <span className="font-bold truncate max-w-[300px]">{label}</span>
                                                             <span className="text-[10px] text-muted-foreground uppercase">Stock: {it.cantidad} en {a?.nombre}</span>
                                                         </div>
                                                     </SelectItem>
@@ -118,12 +122,15 @@ export default function AlmacenPage() {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2 min-w-0">
                                         <Label>Almacén Origen</Label>
-                                        <Select onValueChange={(v: any) => setTransferData({ ...transferData, almacen_origen_id: v })}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Origen" />
+                                        <Select
+                                            value={transferData.almacen_origen_id}
+                                            onValueChange={(v: any) => setTransferData({ ...transferData, almacen_origen_id: v })}
+                                        >
+                                            <SelectTrigger className="w-full overflow-hidden">
+                                                <SelectValue placeholder="Origen" className="truncate" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {almacenes?.map(a => (
@@ -132,11 +139,14 @@ export default function AlmacenPage() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 min-w-0">
                                         <Label>Almacén Destino</Label>
-                                        <Select onValueChange={(v: any) => setTransferData({ ...transferData, almacen_destino_id: v })}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Destino" />
+                                        <Select
+                                            value={transferData.almacen_destino_id}
+                                            onValueChange={(v: any) => setTransferData({ ...transferData, almacen_destino_id: v })}
+                                        >
+                                            <SelectTrigger className="w-full overflow-hidden">
+                                                <SelectValue placeholder="Destino" className="truncate" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {almacenes?.map(a => (
