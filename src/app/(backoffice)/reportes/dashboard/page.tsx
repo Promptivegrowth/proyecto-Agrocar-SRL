@@ -29,15 +29,15 @@ export default function ReportesDashboardPage() {
 
             const { data, error } = await supabase
                 .from('pedidos')
-                .select('fecha_programada, total')
-                .gte('fecha_programada', startDateStr)
-                .order('fecha_programada');
+                .select('fecha_entrega, total')
+                .gte('fecha_entrega', startDateStr)
+                .order('fecha_entrega');
 
             if (error) throw error;
 
             // Group by day or week depending on period
             const grouped = data.reduce((acc: any, curr) => {
-                const date = curr.fecha_programada?.substring(5, 10) || 'N/A';
+                const date = curr.fecha_entrega?.substring(5, 10) || 'N/A';
                 if (!acc[date]) acc[date] = 0;
                 acc[date] += curr.total || 0;
                 return acc;
@@ -67,7 +67,7 @@ export default function ReportesDashboardPage() {
                         zonas!inner(nombre)
                     )
                 `)
-                .gte('fecha_programada', startDateStr);
+                .gte('fecha_entrega', startDateStr);
 
             if (error) return [];
 

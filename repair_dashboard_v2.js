@@ -84,7 +84,7 @@ async function repair() {
                 cliente_id: clis[i % clis.length].id,
                 vendedor_id: vends[i % vends.length].id,
                 vehiculo_id: vehs ? vehs[i % vehs.length]?.id : null,
-                fecha_programada: hoy,
+                fecha_entrega: hoy,
                 total: 250 + (i * 10),
                 estado: 'en_ruta',
                 moneda: 'PEN'
@@ -109,7 +109,7 @@ async function repair() {
             await supabase.from('pedidos').insert({
                 cliente_id: clis[i % clis.length].id,
                 vendedor_id: vends[i % vends.length].id,
-                fecha_programada: fechaStr,
+                fecha_entrega: fechaStr,
                 total: 100 + Math.random() * 900,
                 estado: 'entregado',
                 moneda: 'PEN'
