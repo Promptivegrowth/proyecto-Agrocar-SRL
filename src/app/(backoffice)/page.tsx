@@ -46,12 +46,13 @@ export default function DashboardPage() {
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
             const hoy = now.toISOString().split('T')[0];
 
-            const [pedidos, comprobantes, pagos, productosData, visitasHoy] = await Promise.all([
+            const [pedidos, comprobantes, pagos, productosData, visitasHoy, pedidosHoy] = await Promise.all([
                 supabase.from('pedidos').select('id, total, created_at').gte('created_at', startOfMonth),
                 supabase.from('comprobantes').select('id, total', { count: 'exact' }).gte('fecha_emision', startOfMonth.split('T')[0]),
                 supabase.from('pagos').select('monto, created_at').gte('created_at', startOfMonth),
                 supabase.from('productos').select('descripcion, stock_minimo, stock(cantidad)').eq('activo', true),
-                supabase.from('visitas_gps').select('vendedor_id, hora_checkout').eq('fecha', hoy)
+                supabase.from('visitas_gps').select('vendedor_id, hora_checkout').eq('fecha', hoy),
+                supabase.from('pedidos').select('vehiculo_id').eq('fecha_programada', hoy).is('vehiculo_id', 'not.null')
             ]);
 
             // Calculate stock alerts dynamically
@@ -67,6 +68,7 @@ export default function DashboardPage() {
             // Fleet supervision metrics
             const vendedoresActivos = new Set(visitasHoy.data?.map(v => v.vendedor_id)).size;
             const visitasCompletadas = visitasHoy.data?.length || 0;
+            const vehiculosActivos = new Set(pedidosHoy.data?.map(p => p.vehiculo_id)).size;
 
             // Mock chart data for visual excellence
             const chartData = [
@@ -87,6 +89,7 @@ export default function DashboardPage() {
                 alertas,
                 vendedoresActivos,
                 visitasCompletadas,
+                vehiculosActivos,
                 chartData
             };
         }
@@ -115,7 +118,8 @@ export default function DashboardPage() {
                                 { "CONCEPTO": "DOCUMENTOS EMITIDOS (SUNAT)", "VALOR": stats?.comprobantesCount },
                                 { "CONCEPTO": "PRODUCTOS CON STOCK CRÍTICO", "VALOR": stats?.alertas.length },
                                 { "CONCEPTO": "VENDEDORES ACTIVOS", "VALOR": stats?.vendedoresActivos },
-                                { "CONCEPTO": "VISITAS COMPLETADAS HOY", "VALOR": stats?.visitasCompletadas },
+                                { "CONCEPTO": "VEHICULOS EN RUTA", "VALOR": stats?.vehiculosActivos },
+                                { "CONCEPTO": "VISITAS REGISTRADAS HOY", "VALOR": stats?.visitasCompletadas },
                                 { "CONCEPTO": "ESTUADO DE OPERACIÓN", "VALOR": "OPTIMO" }
                             ];
                             await exportToExcel(dataToExport, "Reporte_Gerencial_Agrocar", "Dashboard");
@@ -212,10 +216,19 @@ export default function DashboardPage() {
                     <div className="mt-8 flex-1 flex flex-col justify-center gap-6">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
+                                <Truck className="w-6 h-6 text-orange-400" />
+                            </div>
+                            <div>
+                                <p className="text-white font-black text-xs uppercase tracking-wider">{isLoading ? '...' : stats?.vehiculosActivos} Vehículos</p>
+                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">En despacho</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
                                 <Users className="w-6 h-6 text-blue-400" />
                             </div>
                             <div>
-                                <p className="text-white font-black text-xs uppercase tracking-wider">{isLoading ? '...' : stats?.vendedoresActivos} Activos</p>
+                                <p className="text-white font-black text-xs uppercase tracking-wider">{isLoading ? '...' : stats?.vendedoresActivos} Vendedores</p>
                                 <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">En campo hoy</p>
                             </div>
                         </div>
