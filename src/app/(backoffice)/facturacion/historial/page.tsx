@@ -190,6 +190,120 @@ export default function HistorialFacturacionPage() {
         toast.success("PLE 14.1 descargado.");
     };
 
+    const handleDownloadXML = async (doc: any) => {
+        toast.info("Generando XML UBL 2.1...");
+
+        // 1. Asegurar items
+        let items = doc.items;
+        if (!items || items.length === 0) {
+            const { data } = await supabase
+                .from('comprobante_items')
+                .select('*')
+                .eq('comprobante_id', doc.id);
+            items = data || [];
+        }
+
+        const emisorRuc = "20123456789";
+        const emisorNombre = "AGROCAR SRL";
+        const [serie, correlativo] = doc.numero_completo.split('-');
+        const tipoDoc = doc.numero_completo.startsWith('F') ? '01' : '03';
+
+        const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+    <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+    <cbc:CustomizationID>2.0</cbc:CustomizationID>
+    <cbc:ID>${doc.numero_completo}</cbc:ID>
+    <cbc:IssueDate>${doc.fecha_emision}</cbc:IssueDate>
+    <cbc:InvoiceTypeCode listID="0101">${tipoDoc}</cbc:InvoiceTypeCode>
+    <cbc:DocumentCurrencyCode>${doc.moneda}</cbc:DocumentCurrencyCode>
+    <cac:Signature>
+        <cbc:ID>${emisorRuc}</cbc:ID>
+        <cac:SignatoryParty>
+            <cac:PartyIdentification><cbc:ID>${emisorRuc}</cbc:ID></cac:PartyIdentification>
+            <cac:PartyName><cbc:Name>${emisorNombre}</cbc:Name></cac:PartyName>
+        </cac:SignatoryParty>
+    </cac:Signature>
+    <cac:AccountingSupplierParty>
+        <cac:Party>
+            <cac:PartyIdentification><cbc:ID schemeID="6">${emisorRuc}</cbc:ID></cac:PartyIdentification>
+            <cac:PartyName><cbc:Name>${emisorNombre}</cbc:Name></cac:PartyName>
+            <cac:PartyLegalEntity>
+                <cbc:RegistrationName>${emisorNombre}</cbc:RegistrationName>
+                <cac:RegistrationAddress>
+                    <cbc:AddressLine>AV. PRINCIPAL 123</cbc:AddressLine>
+                    <cbc:CityName>LIMA</cbc:CityName>
+                    <cbc:CountrySubentity>LIMA</cbc:CountrySubentity>
+                    <cac:Country><cbc:IdentificationCode>PE</cbc:IdentificationCode></cac:Country>
+                </cac:RegistrationAddress>
+            </cac:PartyLegalEntity>
+        </cac:Party>
+    </cac:AccountingSupplierParty>
+    <cac:AccountingCustomerParty>
+        <cac:Party>
+            <cac:PartyIdentification><cbc:ID schemeID="${doc.num_doc_cliente?.length === 11 ? '6' : '1'}">${doc.num_doc_cliente}</cbc:ID></cac:PartyIdentification>
+            <cac:PartyLegalEntity>
+                <cbc:RegistrationName>${doc.razon_social_cliente}</cbc:RegistrationName>
+            </cac:PartyLegalEntity>
+        </cac:Party>
+    </cac:AccountingCustomerParty>
+    <cac:TaxTotal>
+        <cbc:TaxAmount currencyID="${doc.moneda}">${doc.igv?.toFixed(2)}</cbc:TaxAmount>
+        <cac:TaxSubtotal>
+            <cbc:TaxableAmount currencyID="${doc.moneda}">${doc.subtotal?.toFixed(2)}</cbc:TaxableAmount>
+            <cbc:TaxAmount currencyID="${doc.moneda}">${doc.igv?.toFixed(2)}</cbc:TaxAmount>
+            <cac:TaxCategory>
+                <cac:TaxScheme><cbc:ID>1000</cbc:ID><cbc:Name>IGV</cbc:Name><cbc:TaxTypeCode>VAT</cbc:TaxTypeCode></cac:TaxScheme>
+            </cac:TaxCategory>
+        </cac:TaxSubtotal>
+    </cac:TaxTotal>
+    <cac:LegalMonetaryTotal>
+        <cbc:LineExtensionAmount currencyID="${doc.moneda}">${doc.subtotal?.toFixed(2)}</cbc:LineExtensionAmount>
+        <cbc:TaxInclusiveAmount currencyID="${doc.moneda}">${doc.total?.toFixed(2)}</cbc:TaxInclusiveAmount>
+        <cbc:PayableAmount currencyID="${doc.moneda}">${doc.total?.toFixed(2)}</cbc:PayableAmount>
+    </cac:LegalMonetaryTotal>
+    ${items.map((it: any, idx: number) => `
+    <cac:InvoiceLine>
+        <cbc:ID>${idx + 1}</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="${it.unidad_medida || 'NIU'}">${it.cantidad}</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="${doc.moneda}">${it.valor_venta?.toFixed(2)}</cbc:LineExtensionAmount>
+        <cac:PricingReference>
+            <cac:AlternativeConditionPrice>
+                <cbc:PriceAmount currencyID="${doc.moneda}">${it.precio_unitario?.toFixed(2)}</cbc:PriceAmount>
+                <cbc:PriceTypeCode>01</cbc:PriceTypeCode>
+            </cac:AlternativeConditionPrice>
+        </cac:PricingReference>
+        <cac:TaxTotal>
+            <cbc:TaxAmount currencyID="${doc.moneda}">${it.igv?.toFixed(2)}</cbc:TaxAmount>
+            <cac:TaxSubtotal>
+                <cbc:TaxableAmount currencyID="${doc.moneda}">${it.valor_venta?.toFixed(2)}</cbc:TaxableAmount>
+                <cbc:TaxAmount currencyID="${doc.moneda}">${it.igv?.toFixed(2)}</cbc:TaxAmount>
+                <cac:TaxCategory>
+                    <cbc:Percent>18.00</cbc:Percent>
+                    <cbc:TaxExemptionReasonCode>10</cbc:TaxExemptionReasonCode>
+                    <cac:TaxScheme><cbc:ID>1000</cbc:ID><cbc:Name>IGV</cbc:Name><cbc:TaxTypeCode>VAT</cbc:TaxTypeCode></cac:TaxScheme>
+                </cac:TaxCategory>
+            </cac:TaxSubtotal>
+        </cac:TaxTotal>
+        <cac:Item>
+            <cbc:Description>${it.descripcion}</cbc:Description>
+        </cac:Item>
+        <cac:Price>
+            <cbc:PriceAmount currencyID="${doc.moneda}">${(it.valor_venta / it.cantidad).toFixed(2)}</cbc:PriceAmount>
+        </cac:Price>
+    </cac:InvoiceLine>`).join('')}
+</Invoice>`;
+
+        const filename = `${emisorRuc}-${tipoDoc}-${serie}-${correlativo}.xml`;
+        const blob = new Blob([xmlContent], { type: 'text/xml' });
+        const link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        toast.success("XML generado y descargado.");
+    };
+
     const getStatusBadge = (status: string, doc: any) => {
         const handleClick = (e: React.MouseEvent) => {
             e.stopPropagation();
@@ -407,7 +521,7 @@ export default function HistorialFacturacionPage() {
                                                     <Printer className="w-6 h-6 mr-4 text-slate-400" /> Imprimir Formato A4
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator className="my-3 bg-slate-50 h-1" />
-                                                <DropdownMenuItem className="cursor-pointer font-black text-xs uppercase tracking-tight rounded-2xl h-14 px-5 text-blue-600 hover:bg-blue-50 focus:bg-blue-50/50 transition-all mb-1">
+                                                <DropdownMenuItem className="cursor-pointer font-black text-xs uppercase tracking-tight rounded-2xl h-14 px-5 text-blue-600 hover:bg-blue-50 focus:bg-blue-50/50 transition-all mb-1" onClick={() => handleDownloadXML(doc)}>
                                                     <FileDown className="w-6 h-6 mr-4" /> Bajar Archivo XML
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem className="cursor-not-allowed font-black text-xs uppercase tracking-tight rounded-2xl h-14 px-5 text-red-200 opacity-40 bg-red-50/10">
