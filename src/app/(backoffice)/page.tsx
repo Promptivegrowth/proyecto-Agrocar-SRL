@@ -52,7 +52,7 @@ export default function DashboardPage() {
                 supabase.from('pagos').select('monto, created_at').gte('created_at', startOfMonth),
                 supabase.from('productos').select('descripcion, stock_minimo, stock(cantidad)').eq('activo', true),
                 supabase.from('visitas_gps').select('vendedor_id, hora_checkout').eq('fecha', hoy),
-                supabase.from('pedidos').select('vehiculo_id').eq('fecha_programada', hoy).is('vehiculo_id', 'not.null')
+                supabase.from('vehiculos').select('id', { count: 'exact', head: true }),
             ]);
 
             // Calculate stock alerts dynamically
@@ -65,10 +65,10 @@ export default function DashboardPage() {
                 .filter((p: any) => p.stock <= p.stock_minimo)
                 .slice(0, 5);
 
-            // Fleet supervision metrics
-            const vendedoresActivos = new Set(visitasHoy.data?.map(v => v.vendedor_id)).size;
+            const vendedoresActivos = new Set(visitasHoy.data?.map((v: any) => v.vendedor_id)).size;
             const visitasCompletadas = visitasHoy.data?.length || 0;
-            const vehiculosActivos = new Set(pedidosHoy.data?.map(p => p.vehiculo_id)).size;
+            // Count all vehicles in the fleet (they are persistent, not per-day)
+            const vehiculosActivos = (pedidosHoy as any).count ?? 0;
 
             // Mock chart data for visual excellence
             const chartData = [

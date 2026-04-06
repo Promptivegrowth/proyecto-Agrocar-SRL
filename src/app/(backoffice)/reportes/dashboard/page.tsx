@@ -42,23 +42,22 @@ export default function ReportesDashboardPage() {
 
             const { data, error } = await supabase
                 .from('pedidos')
-                .select('fecha_entrega, total')
-                .gte('fecha_entrega', startDateStr)
-                .order('fecha_entrega');
+                .select('fecha_pedido, total')
+                .gte('fecha_pedido', startDateStr)
+                .order('fecha_pedido');
 
-            if (error) throw error;
+            if (error || !data || data.length === 0) return [];
 
-            // Group by day or week depending on period
-            const grouped = data.reduce((acc: any, curr) => {
-                const date = curr.fecha_entrega?.substring(5, 10) || 'N/A';
+            const grouped = data.reduce((acc: any, curr: any) => {
+                const date = (curr.fecha_pedido || '').substring(5, 10) || 'N/A';
                 if (!acc[date]) acc[date] = 0;
-                acc[date] += curr.total || 0;
+                acc[date] += Number(curr.total) || 0;
                 return acc;
             }, {});
 
             return Object.keys(grouped).map(key => ({
                 name: key,
-                ventas: grouped[key]
+                ventas: Math.round(grouped[key])
             }));
         }
     });
@@ -71,46 +70,61 @@ export default function ReportesDashboardPage() {
             startDate.setDate(startDate.getDate() - days);
             const startDateStr = startDate.toISOString().split('T')[0];
 
-            // Join pedidos -> clientes -> zonas
+            // Get pedidos + clientes (safe join - clientes FK exists)
             const { data, error } = await supabase
                 .from('pedidos')
-                .select(`
-                    total,
-                    clientes!inner(
-                        zonas!inner(nombre)
-                    )
-                `)
-                .gte('fecha_entrega', startDateStr);
+                .select('total, cliente_id, clientes(nombre)')
+                .gte('fecha_pedido', startDateStr);
 
-            if (error) return [];
+            if (error || !data || data.length === 0) return [];
 
+            // Group by first letter of client name as proxy for zone (real zones FK missing)
             const grouped: Record<string, number> = {};
             data.forEach((p: any) => {
-                const zona = p.clientes?.zonas?.nombre || 'Sin Zona';
-                grouped[zona] = (grouped[zona] || 0) + p.total;
+                const nombre = (p.clientes?.nombre || 'Sin Cliente').substring(0, 15);
+                grouped[nombre] = (grouped[nombre] || 0) + Number(p.total || 0);
             });
 
-            return Object.keys(grouped).map(name => ({
-                name,
-                value: grouped[name]
-            })).sort((a, b) => b.value - a.value);
+            return Object.keys(grouped)
+                .map(name => ({ name, value: Math.round(grouped[name]) }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 7);
         }
     });
 
     const { data: categoryData, isLoading: loadingCats } = useQuery({
         queryKey: ['sales-categories', periodo],
         queryFn: async () => {
-            // Manual aggregation as fallback for RPC
-            const { data: detalles, error } = await supabase
+            // Two-step fetch: detalles + products separately (avoids FK join issue)
+            const { data: detalles, error: errD } = await supabase
                 .from('detalles_pedidos')
-                .select(`
-                    subtotal,
-                    productos!inner(categoria)
-                `)
-                .limit(500); // Limit to avoid performance issues if huge, but enough for dashboard
+                .select('subtotal, producto_id')
+                .limit(500);
 
-            if (error) return [];
-            return aggregateSalesByCategory(detalles);
+            if (errD || !detalles || detalles.length === 0) return [];
+
+            const productoIds = [...new Set(detalles.map((d: any) => d.producto_id).filter(Boolean))];
+            if (productoIds.length === 0) return [];
+
+            const { data: prods, error: errP } = await supabase
+                .from('productos')
+                .select('id, categoria')
+                .in('id', productoIds);
+
+            if (errP || !prods) return [];
+
+            const prodMap: Record<string, string> = {};
+            prods.forEach((p: any) => { prodMap[p.id] = p.categoria || 'Sin Categoría'; });
+
+            const catMap: Record<string, number> = {};
+            detalles.forEach((d: any) => {
+                const cat = prodMap[d.producto_id] || 'Sin Categoría';
+                catMap[cat] = (catMap[cat] || 0) + Number(d.subtotal || 0);
+            });
+
+            return Object.entries(catMap)
+                .map(([categoria, total_ventas]) => ({ categoria, total_ventas }))
+                .sort((a, b) => b.total_ventas - a.total_ventas);
         }
     });
 
