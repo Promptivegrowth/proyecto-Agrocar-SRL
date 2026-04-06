@@ -502,7 +502,7 @@ export default function DespachoPage() {
 
                             return (
                                 <SortableContext key={vehiculo.id} id={vehiculo.id} items={vehiculo.consolidado.map((p: any) => p.id)} strategy={verticalListSortingStrategy}>
-                                    <Card key={vehiculo.id} className="flex flex-col h-full border-2 border-slate-200 shadow-xl rounded-3xl overflow-hidden transition-all hover:shadow-2xl hover:border-primary/40 bg-white group">
+                                    <Card key={vehiculo.id} className="flex flex-col min-h-[800px] h-full border-2 border-slate-200 shadow-xl rounded-3xl overflow-hidden transition-all hover:shadow-2xl hover:border-primary/40 bg-white group">
                                         <CardHeader className="bg-slate-900 text-white p-6 pb-4 relative overflow-hidden">
                                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                                                 <Truck className="w-20 h-20 rotate-12" />
