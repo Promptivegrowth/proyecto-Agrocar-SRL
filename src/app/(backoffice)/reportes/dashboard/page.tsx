@@ -16,6 +16,19 @@ import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MapPin } from 'lucide-react';
 
+// Manual aggregation function for categories
+const aggregateSalesByCategory = (detalles: any[]) => {
+    const categories: Record<string, number> = {};
+    detalles.forEach(d => {
+        const cat = d.productos?.categoria || 'Sin Categoría';
+        categories[cat] = (categories[cat] || 0) + (d.subtotal || 0);
+    });
+    return Object.entries(categories).map(([categoria, total_ventas]) => ({
+        categoria,
+        total_ventas
+    })).sort((a, b) => b.total_ventas - a.total_ventas);
+};
+
 export default function ReportesDashboardPage() {
     const [periodo, setPeriodo] = useState('30'); // '15', '30', '90'
 
@@ -87,13 +100,17 @@ export default function ReportesDashboardPage() {
     const { data: categoryData, isLoading: loadingCats } = useQuery({
         queryKey: ['sales-categories', periodo],
         queryFn: async () => {
-            // Simplified if RPC doesn't support period
-            const { data } = await supabase.rpc('get_ventas_por_categoria');
-            return data?.map((d: any) => ({ name: d.categoria, value: d.total_ventas })) || [
-                { name: 'Embutidos', value: 45000 },
-                { name: 'Carnes', value: 32000 },
-                { name: 'Lácteos', value: 18000 }
-            ];
+            // Manual aggregation as fallback for RPC
+            const { data: detalles, error } = await supabase
+                .from('detalles_pedidos')
+                .select(`
+                    subtotal,
+                    productos!inner(categoria)
+                `)
+                .limit(500); // Limit to avoid performance issues if huge, but enough for dashboard
+
+            if (error) return [];
+            return aggregateSalesByCategory(detalles);
         }
     });
 
@@ -378,14 +395,16 @@ export default function ReportesDashboardPage() {
                             <MapPin className="w-5 h-5 text-primary" /> Ventas por Distrito / Zona
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6 h-[350px] flex items-center justify-center">
+                    <CardContent className="p-6 h-[350px]">
                         {loadingDistricts ? (
-                            <div className="text-gray-400 font-bold animate-pulse">Geo-localizando ventas...</div>
+                            <div className="flex justify-center items-center h-full text-gray-400 font-bold animate-pulse">Geo-localizando ventas...</div>
+                        ) : !districtData || districtData.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-gray-500">No hay datos de distritos</div>
                         ) : (
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
-                                        data={districtData || []}
+                                        data={districtData}
                                         cx="50%"
                                         cy="45%"
                                         innerRadius={70}
@@ -395,12 +414,46 @@ export default function ReportesDashboardPage() {
                                         dataKey="value"
                                         cornerRadius={6}
                                     >
-                                        {districtData?.map((entry: any, index: number) => (
+                                        {districtData.map((entry: any, index: number) => (
                                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Pie>
                                     <Tooltip formatter={(value: any) => `S/ ${Number(value).toLocaleString()}`} />
                                     <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-md overflow-hidden">
+                    <CardHeader className="bg-slate-50/50">
+                        <CardTitle className="text-lg font-black text-slate-700 flex items-center gap-2">
+                            <PieChartIcon className="w-5 h-5 text-primary" /> Ventas por Categoría
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6 h-[350px]">
+                        {loadingCats ? (
+                            <div className="flex justify-center items-center h-full text-gray-400 font-bold animate-pulse">Clasificando productos...</div>
+                        ) : !categoryData || categoryData.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-gray-500">No hay datos de categorías</div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={categoryData.map(d => ({ name: d.categoria, value: d.total_ventas }))}
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={80}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                        label={({ name, percent }: any) => name && percent ? `${name} ${(percent * 100).toFixed(0)}%` : ''}
+                                    >
+                                        {categoryData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(value: any) => `S/ ${Number(value).toLocaleString()}`} />
                                 </PieChart>
                             </ResponsiveContainer>
                         )}
