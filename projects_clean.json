@@ -1,0 +1,62 @@
+[
+  {
+    "id": "65a600ac-7213-456d-912b-b44368fdc2cc",
+    "nombre": "Contratos Clientes",
+    "descripcion": "Contratos firmados con clientes activos",
+    "icono": "",
+    "color": "#1A2C45",
+    "creado_por": null,
+    "acceso": "equipo",
+    "created_at": "2026-04-05 04:33:49.995465+00"
+  },
+  {
+    "id": "769a9b4d-5cd3-44fc-863f-7bd2806e34b8",
+    "nombre": "Reportes Contables",
+    "descripcion": "Reportes mensuales y declaraciones",
+    "icono": "",
+    "color": "#27AE60",
+    "creado_por": null,
+    "acceso": "equipo",
+    "created_at": "2026-04-05 04:33:49.995465+00"
+  },
+  {
+    "id": "30addf7b-af45-43b6-b4db-4f7f6e5b99b5",
+    "nombre": "Propuestas Comerciales",
+    "descripcion": "Cotizaciones y propuestas enviadas",
+    "icono": "",
+    "color": "#F6C519",
+    "creado_por": null,
+    "acceso": "equipo",
+    "created_at": "2026-04-05 04:33:49.995465+00"
+  },
+  {
+    "id": "a750840d-7068-467f-8498-32c02c935a93",
+    "nombre": "Fotos de Entregas",
+    "descripcion": "Evidencias de despacho y entrega",
+    "icono": "",
+    "color": "#E74C3C",
+    "creado_por": null,
+    "acceso": "equipo",
+    "created_at": "2026-04-05 04:33:49.995465+00"
+  },
+  {
+    "id": "f3f51362-c50e-4a36-9047-c2c63435e5e3",
+    "nombre": "Documentos SUNAT",
+    "descripcion": "Comprobantes y declaraciones SUNAT",
+    "icono": "",
+    "color": "#8B5CF6",
+    "creado_por": null,
+    "acceso": "equipo",
+    "created_at": "2026-04-05 04:33:49.995465+00"
+  },
+  {
+    "id": "cae17c31-c5aa-4589-983a-68d97be64148",
+    "nombre": "test",
+    "descripcion": "test",
+    "icono": "📊",
+    "color": "#27AE60",
+    "creado_por": null,
+    "acceso": "equipo",
+    "created_at": "2026-04-05 04:46:37.830398+00"
+  }
+]

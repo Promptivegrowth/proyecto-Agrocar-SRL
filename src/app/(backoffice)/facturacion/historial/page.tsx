@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuGroup,
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
@@ -263,14 +264,16 @@ export default function HistorialFacturacionPage() {
                                     <ChevronDown className="w-3 h-3 ml-2 opacity-50" />
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-72 p-5 rounded-[2rem] shadow-2xl border-2 border-slate-100 bg-white/95 backdrop-blur-xl">
-                                    <DropdownMenuLabel className="text-[10px] font-black uppercase text-slate-400 px-2 py-2 tracking-[0.2em] flex justify-between items-center">
-                                        Criterios de Búsqueda
-                                        {(statusFilter !== 'todos' || typeFilter !== 'todos') && (
-                                            <Button variant="ghost" size="sm" onClick={resetFilters} className="h-6 px-2 text-[8px] text-red-500 hover:text-red-700 hover:bg-red-50">
-                                                <RotateCcw className="w-2 h-2 mr-1" /> Reset
-                                            </Button>
-                                        )}
-                                    </DropdownMenuLabel>
+                                    <DropdownMenuGroup>
+                                        <DropdownMenuLabel className="text-[10px] font-black uppercase text-slate-400 px-2 py-2 tracking-[0.2em] flex justify-between items-center">
+                                            Criterios de Búsqueda
+                                            {(statusFilter !== 'todos' || typeFilter !== 'todos') && (
+                                                <Button variant="ghost" size="sm" onClick={resetFilters} className="h-6 px-2 text-[8px] text-red-500 hover:text-red-700 hover:bg-red-50">
+                                                    <RotateCcw className="w-2 h-2 mr-1" /> Reset
+                                                </Button>
+                                            )}
+                                        </DropdownMenuLabel>
+                                    </DropdownMenuGroup>
 
                                     <DropdownMenuSeparator className="my-3 h-0.5 bg-slate-50" />
 
@@ -394,7 +397,9 @@ export default function HistorialFacturacionPage() {
                                                 <MoreHorizontal className="h-7 w-7 text-slate-300 group-hover:text-primary transition-colors" />
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="w-72 p-4 rounded-[2rem] shadow-2xl border-2 border-slate-50 bg-white/95 backdrop-blur-xl">
-                                                <DropdownMenuLabel className="text-[10px] font-black uppercase text-slate-400 px-5 py-4 tracking-[0.25em]">Acciones Rápidas</DropdownMenuLabel>
+                                                <DropdownMenuGroup>
+                                                    <DropdownMenuLabel className="text-[10px] font-black uppercase text-slate-400 px-5 py-4 tracking-[0.25em]">Acciones Rápidas</DropdownMenuLabel>
+                                                </DropdownMenuGroup>
                                                 <DropdownMenuItem className="cursor-pointer font-black text-xs uppercase tracking-tight rounded-2xl h-14 px-5 focus:bg-primary/5 focus:text-primary transition-all mb-1" onClick={() => handleViewDetail(doc)}>
                                                     <Eye className="w-6 h-6 mr-4 text-primary" /> Ver Comprobante
                                                 </DropdownMenuItem>

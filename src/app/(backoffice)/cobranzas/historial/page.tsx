@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuGroup,
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
@@ -140,7 +141,9 @@ export default function HistorialPagosPage() {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="w-48 rounded-xl font-bold">
-                                                <DropdownMenuLabel className="text-[10px] uppercase text-gray-400">Acciones del Pago</DropdownMenuLabel>
+                                                <DropdownMenuGroup>
+                                                    <DropdownMenuLabel className="text-[10px] uppercase text-gray-400">Acciones del Pago</DropdownMenuLabel>
+                                                </DropdownMenuGroup>
                                                 <DropdownMenuItem className="text-xs uppercase flex items-center gap-2">
                                                     <Eye className="w-3 h-3" /> Ver Detalle
                                                 </DropdownMenuItem>
