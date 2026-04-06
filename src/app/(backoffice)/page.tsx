@@ -44,13 +44,29 @@ export default function DashboardPage() {
         queryFn: async () => {
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+            const hoy = now.toISOString().split('T')[0];
 
-            const [pedidos, comprobantes, pagos, productosBajoStock] = await Promise.all([
+            const [pedidos, comprobantes, pagos, productosData, visitasHoy] = await Promise.all([
                 supabase.from('pedidos').select('id, total, created_at').gte('created_at', startOfMonth),
                 supabase.from('comprobantes').select('id, total', { count: 'exact' }).gte('fecha_emision', startOfMonth.split('T')[0]),
                 supabase.from('pagos').select('monto, created_at').gte('created_at', startOfMonth),
-                supabase.from('productos').select('nombre, stock, stock_minimo').lt('stock', 10).limit(5)
+                supabase.from('productos').select('descripcion, stock_minimo, stock(cantidad)').eq('activo', true),
+                supabase.from('visitas_gps').select('vendedor_id, hora_checkout').eq('fecha', hoy)
             ]);
+
+            // Calculate stock alerts dynamically
+            const alertas = (productosData.data || [])
+                .map((p: any) => ({
+                    nombre: p.descripcion,
+                    stock_minimo: p.stock_minimo,
+                    stock: p.stock?.reduce((acc: number, s: any) => acc + (s.cantidad || 0), 0) || 0
+                }))
+                .filter((p: any) => p.stock <= p.stock_minimo)
+                .slice(0, 5);
+
+            // Fleet supervision metrics
+            const vendedoresActivos = new Set(visitasHoy.data?.map(v => v.vendedor_id)).size;
+            const visitasCompletadas = visitasHoy.data?.length || 0;
 
             // Mock chart data for visual excellence
             const chartData = [
@@ -68,7 +84,9 @@ export default function DashboardPage() {
                 pedidosTotal: pedidos.data?.reduce((acc, p) => acc + (p.total || 0), 0) || 0,
                 comprobantesCount: comprobantes.count || 0,
                 pagosTotal: pagos.data?.reduce((acc, p) => acc + (p.monto || 0), 0) || 0,
-                alertas: productosBajoStock.data || [],
+                alertas,
+                vendedoresActivos,
+                visitasCompletadas,
                 chartData
             };
         }
@@ -96,6 +114,8 @@ export default function DashboardPage() {
                                 { "CONCEPTO": "COBRANZA TOTAL EFECTIVA", "VALOR": stats?.pagosTotal },
                                 { "CONCEPTO": "DOCUMENTOS EMITIDOS (SUNAT)", "VALOR": stats?.comprobantesCount },
                                 { "CONCEPTO": "PRODUCTOS CON STOCK CRÍTICO", "VALOR": stats?.alertas.length },
+                                { "CONCEPTO": "VENDEDORES ACTIVOS", "VALOR": stats?.vendedoresActivos },
+                                { "CONCEPTO": "VISITAS COMPLETADAS HOY", "VALOR": stats?.visitasCompletadas },
                                 { "CONCEPTO": "ESTUADO DE OPERACIÓN", "VALOR": "OPTIMO" }
                             ];
                             await exportToExcel(dataToExport, "Reporte_Gerencial_Agrocar", "Dashboard");
@@ -195,7 +215,7 @@ export default function DashboardPage() {
                                 <Users className="w-6 h-6 text-blue-400" />
                             </div>
                             <div>
-                                <p className="text-white font-black text-xs uppercase tracking-wider">12 Activos</p>
+                                <p className="text-white font-black text-xs uppercase tracking-wider">{isLoading ? '...' : stats?.vendedoresActivos} Activos</p>
                                 <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">En campo hoy</p>
                             </div>
                         </div>
@@ -204,8 +224,8 @@ export default function DashboardPage() {
                                 <MapPin className="w-6 h-6 text-emerald-400" />
                             </div>
                             <div>
-                                <p className="text-white font-black text-xs uppercase tracking-wider">45 Visitas</p>
-                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Completadas hoy</p>
+                                <p className="text-white font-black text-xs uppercase tracking-wider">{isLoading ? '...' : stats?.visitasCompletadas} Visitas</p>
+                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Registradas hoy</p>
                             </div>
                         </div>
                     </div>
