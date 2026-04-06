@@ -237,12 +237,37 @@ export default function FlotaPage() {
                                         <div className="bg-slate-50 rounded-xl p-2.5 text-center">
                                             <Gauge className="w-3.5 h-3.5 mx-auto mb-1 text-slate-400" />
                                             <p className="font-black text-slate-700 text-xs">{(v.km_actual || 0).toLocaleString()}</p>
-                                            <p className="text-slate-400 font-bold uppercase tracking-wider mt-0.5">KM</p>
+                                            <p className="text-slate-400 font-bold uppercase tracking-wider mt-0.5">KM Actual</p>
                                         </div>
-                                        <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                                            <Settings className="w-3.5 h-3.5 mx-auto mb-1 text-slate-400" />
-                                            <p className="font-black text-slate-700 text-xs">{v.capacidad_kg || 'N/A'}</p>
-                                            <p className="text-slate-400 font-bold uppercase tracking-wider mt-0.5">Cap. KG</p>
+                                        <div className="bg-slate-50 rounded-xl p-2.5 text-center relative overflow-hidden group">
+                                            <Wrench className="w-3.5 h-3.5 mx-auto mb-1 text-slate-400" />
+                                            {(() => {
+                                                const kmDesdeAceite = v.km_actual - (v.ultimo_km_aceite || 0);
+                                                const objetivo = v.objetivo_km_aceite || 5000;
+                                                const porc = Math.min(100, (kmDesdeAceite / objetivo) * 100);
+                                                const isCritical = porc >= 90;
+                                                return (
+                                                    <>
+                                                        <p className={`font-black text-xs ${isCritical ? 'text-red-600' : 'text-slate-700'}`}>
+                                                            {kmDesdeAceite.toLocaleString()} / {objetivo.toLocaleString()}
+                                                        </p>
+                                                        <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-200">
+                                                            <div
+                                                                className={`h-full transition-all ${isCritical ? 'bg-red-500' : 'bg-blue-500'}`}
+                                                                style={{ width: `${porc}%` }}
+                                                            />
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
+                                            <p className="text-slate-400 font-bold uppercase tracking-wider mt-0.5">Aceite (KM)</p>
+                                        </div>
+                                        <div className={`rounded-xl p-2.5 text-center border-2 ${v.tiene_papeletas ? 'bg-orange-50 border-orange-200 animate-pulse' : 'bg-slate-50 border-transparent'}`}>
+                                            <AlertTriangle className={`w-3.5 h-3.5 mx-auto mb-1 ${v.tiene_papeletas ? 'text-orange-600' : 'text-slate-400'}`} />
+                                            <p className={`font-black text-xs ${v.tiene_papeletas ? 'text-orange-700' : 'text-slate-700'}`}>
+                                                {v.tiene_papeletas ? `S/ ${v.monto_papeletas || 0}` : 'OK'}
+                                            </p>
+                                            <p className="text-slate-400 font-bold uppercase tracking-wider mt-0.5">Papeletas</p>
                                         </div>
                                     </div>
 

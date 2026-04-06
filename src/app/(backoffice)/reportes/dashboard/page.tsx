@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
+import { Truck, AlertTriangle as AlertTriangleIcon } from 'lucide-react';
 
 const COLORS = ['#1A2C45', '#F6C519', '#10B981', '#E11D48', '#8B5CF6'];
 
@@ -59,6 +60,19 @@ export default function ReportesDashboardPage() {
             }
 
             return data.map((d: any) => ({ name: d.categoria, value: d.total_ventas }));
+        }
+    });
+
+    const { data: fleetAlerts, isLoading: loadingFleet } = useQuery({
+        queryKey: ['critical-fleet-alerts'],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from('fleet_alertas')
+                .select('*, vehiculos(placa, marca, modelo)')
+                .not('estado', 'eq', 'resuelto')
+                .order('fecha_vencimiento', { ascending: true })
+                .limit(5);
+            return data || [];
         }
     });
 
@@ -237,14 +251,41 @@ export default function ReportesDashboardPage() {
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Rotación Stock</p>
-                                <p className="text-3xl font-black mt-1 text-slate-800">85%</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Alertas Flota</p>
+                                <p className={`text-3xl font-black mt-1 ${(fleetAlerts && fleetAlerts.length > 0) ? 'text-red-600' : 'text-slate-800'}`}>
+                                    {fleetAlerts?.length || 0}
+                                </p>
                             </div>
-                            <Package className="w-10 h-10 text-orange-500 opacity-20" />
+                            <Truck className={`w-10 h-10 ${(fleetAlerts && fleetAlerts.length > 0) ? 'text-red-500' : 'text-slate-400'} opacity-20`} />
                         </div>
                     </CardContent>
                 </Card>
             </div>
+
+            {fleetAlerts && fleetAlerts.length > 0 && (
+                <Card className="border-none shadow-lg bg-red-50/50 border-red-100 overflow-hidden">
+                    <CardHeader className="bg-red-600 py-3">
+                        <CardTitle className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                            <AlertTriangleIcon className="w-4 h-4" /> Alertas Críticas de Flota
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {fleetAlerts.map((alerta: any) => (
+                                <div key={alerta.id} className="bg-white p-3 rounded-2xl shadow-sm border border-red-100 flex items-center justify-between">
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-black text-red-600 uppercase tracking-tighter">[{alerta.vehiculos?.placa}] {alerta.tipo}</p>
+                                        <p className="text-xs font-bold text-slate-800 truncate">{alerta.titulo}</p>
+                                    </div>
+                                    <a href="/despacho/flota" className="h-8 w-8 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-all">
+                                        <Truck className="w-4 h-4 text-slate-400" />
+                                    </a>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="border-none shadow-md overflow-hidden">
